@@ -1,0 +1,23 @@
+# Goal of this project
+
+## Write an app with minimalistic UI to perform the following
+
+- Watch linux directory '/mnt/zurg/all/'.
+- Write event handler to handle new directory added within it.
+- Auto sync the directory and its contents to the SQLite DB.
+- Generate good code comments and make it easily extensible.
+
+# Docs
+
+## How to setup Prisma?
+
+1. Generate the Prisma client:
+
+```
+npx prisma generate
+```
+2. Apply initial migrations:
+
+```
+npx prisma migrate dev --name init
+```

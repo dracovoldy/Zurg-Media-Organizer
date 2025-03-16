@@ -1,0 +1,26 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Directory {
+  id        String   @id @default(uuid()) // Generates a UUID for each new Directory record
+  name      String
+  path      String   @unique
+  createdAt DateTime @default(now())
+  files     File[]
+}
+
+model File {
+  id          String   @id @default(uuid()) // Generates a UUID for each new File record
+  name        String
+  path        String   @unique
+  size        BigInt
+  createdAt   DateTime @default(now())
+  directory   Directory? @relation(fields: [directoryId], references: [id])
+  directoryId String?
+}

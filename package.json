@@ -1,0 +1,23 @@
+{
+  "name": "4bhi-media-org",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@dotenvx/dotenvx": "^1.38.5",
+    "@prisma/client": "^6.5.0",
+    "chokidar": "^4.0.3",
+    "express": "^4.21.2",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "prisma": "^6.5.0"
+  }
+}
