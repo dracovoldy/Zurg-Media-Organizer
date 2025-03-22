@@ -13,6 +13,7 @@
   "dependencies": {
     "@dotenvx/dotenvx": "^1.38.5",
     "@prisma/client": "^6.5.0",
+    "bottleneck": "^2.19.5",
     "chokidar": "^4.0.3",
     "express": "^4.21.2",
     "node-fetch": "^3.3.2",
