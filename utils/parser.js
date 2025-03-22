@@ -1,6 +1,6 @@
 'use strict';
 
-function parseMovieTitle(rawName) {
+function parseTitle(rawName) {
     // --- Step 1. Check for collection indicators ---
     // If the raw name contains "collection", "collections", or "bundle" (case insensitive),
     // mark type as "collection".
@@ -92,5 +92,5 @@ function parseMovieTitle(rawName) {
 }
 
 module.exports = {
-    parseMovieTitle
+    parseTitle
 }

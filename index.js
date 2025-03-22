@@ -9,7 +9,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 // My modules
-const { parseMovieTitle } = require('./utils/parser');
+const { parseTitle } = require('./utils/parser');
 
 // Directory to watch on the Linux system.
 const watchedDirectory = process.env.ZURG_ALL_PATH || '/mnt/zurg/__all__/';
@@ -115,13 +115,17 @@ app.get('/', async (req, res) => {
       <body>
         <h1>Synced Directories</h1>
         ${directories.map(dir => `
-          <div class="directory">
-            <strong>${dir.name}</strong><br>
-            <small>${dir.path}</small>
-            <ul>
-              ${dir.files.map(file => `<li class="filename">${file.name} – ${file.size} bytes</li>`).join('')}
-            </ul>
-          </div>
+            <div class="directory">
+                <strong>${dir.name}</strong><br>
+                <small>Path: ${dir.path}</small><br>
+                <small>Parsed Name: ${dir.parsedName || 'N/A'}</small><br>
+                <small>Parsed Year: ${dir.parsedYear ? dir.parsedYear : 'N/A'}</small><br>
+                <small>Parsed Type: ${dir.parsedType || 'N/A'}</small><br>
+                <small>Special Name: ${dir.specialName || 'N/A'}</small>
+                <ul>
+                ${dir.files.map(file => `<li class="filename">${file.name} – ${file.size} bytes</li>`).join('')}
+                </ul>
+            </div>
         `).join('')}
       </body>
       </html>
@@ -142,23 +146,30 @@ app.get('/parse', async (req, res) => {
             orderBy: { createdAt: 'desc' }
         });
 
-        let parsed = directories.map(item => {
-            const { parsed_name, parsed_year, type, specialName } = parseMovieTitle(item.name);
+        // Update each directory entry with parsed properties.
+        // Convert parsed_year to an integer (if available) to ensure valid type.
+        const updatedDirectories = await Promise.all(directories.map(async (dir) => {
+            const { parsed_name, parsed_year, type, specialName } = parseTitle(dir.name);
+            const parsedYearConverted = parsed_year && !isNaN(Number(parsed_year))
+                ? Number(parsed_year)
+                : null;
 
-            item['parsedName'] = parsed_name;
-            item['parsedYear'] = parsed_year;
-            item['parsedType'] = type;
-            item['specialName'] = specialName;
+            return prisma.directory.update({
+                where: { id: dir.id },
+                data: {
+                    parsedName: parsed_name,
+                    parsedYear: parsedYearConverted,
+                    parsedType: type,
+                    specialName: specialName
+                },
+                include: { files: true }
+            });
+        }));
 
-            return item;
-        });
-
-
-        res.json(parsed);
-
+        res.json(updatedDirectories);
     } catch (error) {
-        console.error("Error fetching directories from DB:", error);
-        res.status(500).send("An error occurred while retrieving data.");
+        console.error("Error updating directories:", error);
+        res.status(500).send("An error occurred while parsing directories.");
     }
 });
 

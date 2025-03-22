@@ -1,3 +1,4 @@
+// prisma/schema.prisma
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
@@ -8,19 +9,23 @@ generator client {
 }
 
 model Directory {
-  id        String   @id @default(uuid()) // Generates a UUID for each new Directory record
-  name      String
-  path      String   @unique
-  createdAt DateTime @default(now())
-  files     File[]
+  id          String   @id @default(uuid()) // Generates a UUID for each new Directory record
+  name        String
+  path        String   @unique
+  parsedName  String? // Additional property: parsed directory name
+  parsedYear  Int? // Additional property: parsed directory year
+  parsedType  String? // Additional property: type extracted from directory name
+  specialName String? // Additional property: any special name extracted from directory
+  createdAt   DateTime @default(now())
+  files       File[]
 }
 
 model File {
-  id          String   @id @default(uuid()) // Generates a UUID for each new File record
+  id          String     @id @default(uuid()) // Generates a UUID for each new File record
   name        String
-  path        String   @unique
+  path        String     @unique
   size        BigInt
-  createdAt   DateTime @default(now())
+  createdAt   DateTime   @default(now())
   directory   Directory? @relation(fields: [directoryId], references: [id])
   directoryId String?
 }
