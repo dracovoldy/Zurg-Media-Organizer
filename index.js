@@ -188,6 +188,7 @@ app.get('/', async (req, res) => {
 app.get('/parse', async (req, res) => {
     try {
         const directories = await prisma.directory.findMany({
+            where: { parsedName: null },
             orderBy: { createdAt: 'desc' }
         });
 
@@ -210,7 +211,11 @@ app.get('/parse', async (req, res) => {
             });
         }));
 
-        res.json(updatedDirectories);
+      // Use a replacer function to serialize BigInt values as strings
+      const replacer = (key, value) => typeof value === "bigint" ? value.toString() : value;
+      res.setHeader("Content-Type", "application/json");
+      res.send(JSON.stringify(updatedDirectories, replacer));
+      
     } catch (error) {
         console.error("Error updating directories:", error);
         res.status(500).send("An error occurred while parsing directories.");

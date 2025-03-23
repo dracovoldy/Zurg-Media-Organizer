@@ -66,7 +66,10 @@ async function createSymlinkForFile(srcFilePath, destFilePath) {
 async function processMovieDirectory(directory, tmdbInfo) {
     if (!tmdbInfo) throw new Error("TMDB details missing");
 
-    const mediaTitle = tmdbInfo.title || tmdbInfo.name || directory.name;
+
+
+    // HOTFIX: fix non unix compatible file names
+    const mediaTitle = (tmdbInfo.title || tmdbInfo.name || directory.name).replace(/\//g, " ");
     const releaseDate = tmdbInfo.release_date || tmdbInfo.first_air_date || "";
     const releaseYear = releaseDate ? releaseDate.substring(0, 4) : "Unknown";
     const categoryFolder = getTargetCategoryFolder('movies', tmdbInfo);
@@ -75,14 +78,29 @@ async function processMovieDirectory(directory, tmdbInfo) {
 
     await createDirectoryIfNotExists(targetDir);
 
+    // Filter out media files among all files based on allowed extensions.
+    const mediaFiles = directory.files.filter(file => allowedMediaExtensions.has(path.extname(file.name).toLowerCase()));
+    let largestMediaFile = null;
+    if (mediaFiles.length > 0) {
+        largestMediaFile = mediaFiles.reduce((prev, curr) => (prev.size > curr.size ? prev : curr));
+    }
+
+    // Process each file in the directory.
     for (const file of directory.files) {
         const srcFilePath = file.path;
         const fileExt = path.extname(file.name).toLowerCase();
         let destFilePath;
         if (allowedMediaExtensions.has(fileExt)) {
-            const baseName = `${mediaTitle} (${releaseYear})`;
-            destFilePath = await getNextVersionedFilePath(targetDir, baseName, fileExt);
+            if (largestMediaFile && file.id === largestMediaFile.id) {
+                // For the largest (main) media file, apply versioning.
+                const baseName = `${mediaTitle} (${releaseYear})`;
+                destFilePath = await getNextVersionedFilePath(targetDir, baseName, fileExt);
+            } else {
+                // For extra media files, append "-extra" and do NOT version.
+                destFilePath = path.join(targetDir, `${mediaTitle} (${releaseYear}) [tmdbid-${directory.tmdbId}]-extra${fileExt}`);
+            }
         } else {
+            // For non-media files, just preserve the original file name.
             destFilePath = path.join(targetDir, file.name);
         }
         await createSymlinkForFile(srcFilePath, destFilePath);
