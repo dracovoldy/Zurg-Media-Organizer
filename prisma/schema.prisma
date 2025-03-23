@@ -9,17 +9,19 @@ generator client {
 }
 
 model Directory {
-  id          String   @id @default(uuid()) // Generates a UUID for each new Directory record
-  name        String
-  path        String   @unique
-  parsedName  String?  // Additional property: parsed directory name
-  parsedYear  Int?     // Additional property: parsed directory year
-  parsedType  String?  // Additional property: type extracted from directory name
-  specialName String?  // Additional property: any special name extracted from directory
-  tmdbId      Int?     // TMDB id if found
-  tmdbStatus  String?  // Status of TMDB matching process (e.g., MATCH_FOUND, NO_MATCH_FOUND, API_DOWN, NETWORK_ERROR)
-  createdAt   DateTime @default(now())
-  files       File[]
+  id           String   @id @default(uuid()) // Generates a UUID for each new Directory record
+  name         String
+  path         String   @unique
+  parsedName   String? // Additional property: parsed directory name
+  parsedYear   Int? // Additional property: parsed directory year
+  parsedType   String? // Additional property: type extracted from directory name
+  specialName  String? // Additional property: any special name extracted from directory
+  tmdbId       Int? // TMDB id if found
+  tmdbStatus   String? // Status of TMDB matching process (e.g., MATCH_FOUND, NO_MATCH_FOUND, API_DOWN, NETWORK_ERROR)
+  libraryAdded Boolean  @default(false) // Indicates if added to library
+  libraryPath  String? // Path to the library folder
+  createdAt    DateTime @default(now())
+  files        File[]
 }
 
 model File {

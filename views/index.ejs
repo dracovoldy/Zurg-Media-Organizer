@@ -83,19 +83,27 @@
       <input type="text" name="tmdbId" placeholder="TMDB ID" value="<%= query.tmdbId || '' %>" />
       <!-- New: Type Filter Dropdown -->
       <select name="type">
-         <option value="">All Types</option>
-         <option value="movies" <%= query.type === 'movies' ? 'selected' : '' %>>Movies</option>
-         <option value="shows" <%= query.type === 'shows' ? 'selected' : '' %>>Shows</option>
+        <option value="">All Types</option>
+        <option value="movies" <%= query.type === 'movies' ? 'selected' : '' %>>Movies</option>
+        <option value="shows" <%= query.type === 'shows' ? 'selected' : '' %>>Shows</option>
+        <option value="collection" <%= query.type === 'collection' ? 'selected' : '' %>>Collection</option>
+        <option value="unknown" <%= query.type === 'unknown' ? 'selected' : '' %>>Unknown</option>
+      </select>
+      <!-- New: Library Status Filter Dropdown -->
+      <select name="libraryStatus">
+        <option value="">All Library Status</option>
+        <option value="added" <%= query.libraryStatus === 'added' ? 'selected' : '' %>>Added</option>
+        <option value="notAdded" <%= query.libraryStatus === 'notAdded' ? 'selected' : '' %>>Not Added</option>
       </select>
       <select name="sortBy">
-         <option value="">Sort By</option>
-         <% for (let i = 0; i < validSortFields.length; i++) { %>
-           <option value="<%= validSortFields[i] %>" <%= query.sortBy === validSortFields[i] ? 'selected' : '' %>><%= validSortFields[i] %></option>
-         <% } %>
+        <option value="">Sort By</option>
+        <% for (let i = 0; i < validSortFields.length; i++) { %>
+          <option value="<%= validSortFields[i] %>" <%= query.sortBy === validSortFields[i] ? 'selected' : '' %>><%= validSortFields[i] %></option>
+        <% } %>
       </select>
       <select name="sortOrder">
-         <option value="desc" <%= query.sortOrder === 'desc' ? 'selected' : '' %>>Descending</option>
-         <option value="asc" <%= query.sortOrder === 'asc' ? 'selected' : '' %>>Ascending</option>
+        <option value="desc" <%= query.sortOrder === 'desc' ? 'selected' : '' %>>Descending</option>
+        <option value="asc" <%= query.sortOrder === 'asc' ? 'selected' : '' %>>Ascending</option>
       </select>
       <button type="submit">Search</button>
   </form>
@@ -119,6 +127,13 @@
             </div>
           <% } else { %>
             <div class="tmdb-status"><strong>TMDB Status:</strong> <%= dir.tmdbStatus || 'N/A' %></div>
+          <% } %>
+
+          <!-- Library status display -->
+          <% if (dir.libraryAdded) { %>
+            <div><strong>Library:</strong> Added (<%= dir.libraryPath %>)</div>
+          <% } else { %>
+            <div><strong>Library:</strong> Not Added</div>
           <% } %>
   
           <!-- Toggle Files Button -->

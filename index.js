@@ -11,9 +11,11 @@ const Bottleneck = require('bottleneck');
 
 // My modules
 const { parseTitle } = require('./utils/parser');
+const { processMovieDirectory } = require('./utils/library');
+const { searchTmdb, getTmdbDetails } = require('./utils/tmdb');
 
 // Directory to watch on the Linux system.
-const watchedDirectory = process.env.ZURG_ALL_PATH || '/mnt/zurg/__all__/';
+const watchedDirectory = process.env.ZURG_ALL_PATH ? process.env.ZURG_ALL_PATH : '/mnt/zurg/__all__/';
 
 // TMDB API configuration Constants – ensure your .env file contains TMDB_BEARER_TOKEN
 const TMDB_BEARER_TOKEN = process.env.TMDB_BEARER_TOKEN;
@@ -23,84 +25,6 @@ const TMDB_TV_SEARCH_URL = 'https://api.themoviedb.org/3/search/tv';
 // Initialize Express and Prisma.
 const app = express();
 const prisma = new PrismaClient();
-
-async function searchTmdb(query, mediaType, year) {
-    const languages = ['hi-IN', 'en-US'];
-    for (const lang of languages) {
-        let baseUrl = mediaType === 'shows' ? TMDB_TV_SEARCH_URL : TMDB_MOVIE_SEARCH_URL;
-        const urlObj = new URL(baseUrl);
-        urlObj.searchParams.append('query', query);
-        urlObj.searchParams.append('language', lang);
-        urlObj.searchParams.append('include_adult', 'false');
-        if (year) {
-            if (mediaType === 'shows') {
-                urlObj.searchParams.append('first_air_date_year', year.toString());
-            } else {
-                urlObj.searchParams.append('year', year.toString());
-            }
-        }
-        try {
-            const response = await fetch(urlObj.href, {
-                headers: {
-                    'Authorization': `Bearer ${TMDB_BEARER_TOKEN}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            if (response.status === 502) {
-                throw new Error("API_DOWN");
-            }
-            if (!response.ok) {
-                throw new Error("HTTP_ERROR_" + response.status);
-            }
-            const data = await response.json();
-            if (data.results && data.results.length > 0) {
-                let results = data.results;
-                if (year) {
-                    // For movies, check 'release_date'; For TV shows, check 'first_air_date'
-                    results = results.filter(item => {
-                        const dateField = mediaType === 'shows' ? item.first_air_date : item.release_date;
-                        return dateField && dateField.startsWith(year.toString());
-                    });
-                }
-                if (results.length > 0) {
-                    return results[0].id;
-                } else if (data.results.length > 0) {
-                    // Fallback: return the first result from the unfiltered list
-                    return data.results[0].id;
-                }
-            }
-        } catch (error) {
-            // Propagate error to allow the caller to update status accordingly.
-            throw error;
-        }
-    }
-    return null;
-}
-
-async function getTmdbDetails(tmdbId, mediaType) {
-    let baseUrl;
-    if (mediaType === 'shows') {
-        baseUrl = `https://api.themoviedb.org/3/tv/${tmdbId}`;
-    } else {
-        baseUrl = `https://api.themoviedb.org/3/movie/${tmdbId}`;
-    }
-    try {
-        const response = await fetch(baseUrl, {
-            headers: {
-                'Authorization': `Bearer ${TMDB_BEARER_TOKEN}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        if (!response.ok) {
-            console.error(`Failed to fetch TMDB details for id ${tmdbId} with status ${response.status}`);
-            return null;
-        }
-        return await response.json();
-    } catch (error) {
-        console.error(`Error fetching TMDB details for id ${tmdbId}:`, error);
-        return null;
-    }
-}
 
 async function syncDirectory(dirPath) {
     // Prevent syncing if the directory already exists in the DB.
@@ -208,6 +132,15 @@ app.get('/', async (req, res) => {
             filters.tmdbId = Number(req.query.tmdbId);
         }
 
+        // New: Filter by library status (added or not added)
+        if (req.query.libraryStatus && req.query.libraryStatus.trim() !== "") {
+            if (req.query.libraryStatus === 'added') {
+                filters.libraryAdded = true;
+            } else if (req.query.libraryStatus === 'notAdded') {
+                filters.libraryAdded = false;
+            }
+        }
+
         // --- Build sorting options ---
         const validSortFields = ['name', 'parsedName', 'parsedYear', 'specialName', 'tmdbId', 'createdAt'];
         let orderBy = {};
@@ -297,12 +230,6 @@ app.get('/update-tmdb', async (req, res) => {
             });
         }
 
-        // Set up a rate limiter to allow max 50 requests per second.
-        const limiter = new Bottleneck({
-            maxConcurrent: 50,
-            minTime: 20
-        });
-
         // Process directories concurrently using Promise.all.
         const updatePromises = directories.map(async (dir) => {
             let updateData = {};
@@ -316,14 +243,17 @@ app.get('/update-tmdb', async (req, res) => {
                     : dir.parsedName;
 
                 try {
-                    const foundTmdbId = await limiter.schedule(() => searchTmdb(queryName, dir.parsedType, dir.parsedYear));
+                    const foundTmdbId = await searchTmdb(queryName, dir.parsedType, dir.parsedYear);
+
                     if (foundTmdbId !== null) {
                         updateData.tmdbId = foundTmdbId;
                         updateData.tmdbStatus = "MATCH_FOUND";
                     } else {
                         updateData.tmdbStatus = "NO_MATCH_FOUND";
                     }
+
                 } catch (error) {
+
                     console.log('TMDB matcher error: ', error);
                     if (error.message === "API_DOWN") {
                         updateData.tmdbStatus = "API_DOWN";
@@ -332,6 +262,7 @@ app.get('/update-tmdb', async (req, res) => {
                     } else {
                         updateData.tmdbStatus = "NETWORK_ERROR";
                     }
+
                 }
             }
 
@@ -351,6 +282,104 @@ app.get('/update-tmdb', async (req, res) => {
     } catch (error) {
         console.error("Error during TMDB update:", error);
         res.status(500).send("An error occurred while updating TMDB info.");
+    }
+});
+
+app.post('/add-to-library/:id', async (req, res) => {
+    try {
+        const override = req.query.override === 'true';
+        const directory = await prisma.directory.findUnique({
+            where: { id: req.params.id },
+            include: { files: true }
+        });
+        if (!directory) return res.status(404).json({ error: 'Directory not found' });
+
+        // Skip if already added unless override is true
+        if (directory.libraryAdded && !override) {
+            return res.status(200).json({ message: 'Directory already added', libraryPath: directory.libraryPath });
+        }
+
+        // Process based on parsedType; currently only "movies" is implemented.
+        if (directory.parsedType === 'movies') {
+            // Ensure TMDB details are available (tmdbStatus MATCH_FOUND and tmdbId exists)
+            if (!(directory.tmdbStatus === 'MATCH_FOUND' && directory.tmdbId)) {
+                return res.status(400).json({ error: 'TMDB details missing for movies' });
+            }
+            // Fetch TMDB details if not already enriched.
+            const mediaType = 'movie';
+            const tmdbInfo = await getTmdbDetails(directory.tmdbId, mediaType);
+            if (!tmdbInfo) return res.status(400).json({ error: 'Could not fetch TMDB details' });
+
+            // Process the movie directory and create symlinks.
+            const targetLibPath = await processMovieDirectory(directory, tmdbInfo);
+
+            // Update DB record with library info.
+            const updatedDir = await prisma.directory.update({
+                where: { id: directory.id },
+                data: { libraryAdded: true, libraryPath: targetLibPath },
+                include: { files: true }
+            });
+            return res.status(200).json({ message: 'Added to library', directory: updatedDir });
+        } else if (directory.parsedType === 'shows') {
+            // Placeholder for shows: To be implemented.
+            return res.status(501).json({ error: 'Adding shows to library not implemented yet' });
+        } else if (directory.parsedType === 'collection') {
+            // Placeholder for collections: To be implemented.
+            return res.status(501).json({ error: 'Adding collections to library not implemented yet' });
+        } else {
+            return res.status(400).json({ error: 'Unsupported directory type' });
+        }
+    } catch (error) {
+        console.error('Error in Add-to-Library (single):', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Mass add "Add to Media Library" endpoint
+app.post('/add-to-library', async (req, res) => {
+    try {
+        const override = req.query.override === 'true';
+        // Find directories with TMDB details that haven't been added or if override is set.
+        const directories = await prisma.directory.findMany({
+            where: {
+                AND: [
+                    { tmdbStatus: 'MATCH_FOUND' },
+                    { tmdbId: { not: null } },
+                    { OR: [{ libraryAdded: false }, override ? {} : {}] } // override flag; use proper filtering as needed
+                ]
+            },
+            include: { files: true }
+        });
+
+        const results = await Promise.all(directories.map(async (dir) => {
+            if (dir.parsedType === 'movies') {
+                const tmdbInfo = await getTmdbDetails(dir.tmdbId, 'movie');
+                if (!tmdbInfo) {
+                    return { id: dir.id, error: 'TMDB details missing' };
+                }
+                try {
+                    const targetLibPath = await processMovieDirectory(dir, tmdbInfo);
+                    const updated = await prisma.directory.update({
+                        where: { id: dir.id },
+                        data: { libraryAdded: true, libraryPath: targetLibPath },
+                        include: { files: true }
+                    });
+                    return { id: dir.id, status: 'added', libraryPath: targetLibPath };
+                } catch (error) {
+                    return { id: dir.id, error: error.message };
+                }
+            } else if (dir.parsedType === 'shows' || dir.parsedType === 'collection') {
+                // Placeholders for unimplemented types
+                return { id: dir.id, error: `Adding type '${dir.parsedType}' not implemented` };
+            } else {
+                return { id: dir.id, error: 'Unsupported type' };
+            }
+        }));
+
+        res.status(200).json({ results });
+    } catch (error) {
+        console.error('Error in mass Add-to-Library:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
