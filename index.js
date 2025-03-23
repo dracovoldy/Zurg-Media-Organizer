@@ -12,6 +12,10 @@ const Bottleneck = require('bottleneck');
 // My modules
 const { parseTitle } = require('./utils/parser');
 
+// Configure Express to use EJS as the view engine and set the views directory.
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views"));
+
 // Directory to watch on the Linux system.
 const watchedDirectory = process.env.ZURG_ALL_PATH || '/mnt/zurg/__all__/';
 
@@ -213,6 +217,18 @@ app.get('/', async (req, res) => {
         if (req.query.specialName && req.query.specialName.trim() !== "") {
             filters.specialName = { contains: req.query.specialName };
         }
+        // --- New: Add Type Filter ---
+        if (req.query.type && req.query.type.trim() !== "") {
+            if (req.query.type === 'shows') {
+                filters.parsedType = "shows";
+            } else if (req.query.type === 'collection') {
+                filters.parsedType = "collection";
+            } else if (req.query.type === 'movies') {
+                filters.parsedType = "movies";
+            } else if (req.query.type === 'unknown') {
+                filters.parsedType = null;
+            }
+        }
         if (req.query.tmdbId && !isNaN(Number(req.query.tmdbId))) {
             filters.tmdbId = Number(req.query.tmdbId);
         }
@@ -324,21 +340,29 @@ app.get('/', async (req, res) => {
                <h1>Synced Directories</h1>
                <!-- Search Form -->
                <form class="search-form" method="GET" action="/">
-                   <input type="text" name="name" placeholder="Directory Name" value="${req.query.name || ''}" />
-                   <input type="text" name="parsedName" placeholder="Parsed Name" value="${req.query.parsedName || ''}" />
-                   <input type="number" name="year" placeholder="Year" value="${req.query.year || ''}" />
-                   <input type="text" name="specialName" placeholder="Special Name" value="${req.query.specialName || ''}" />
-                   <input type="text" name="tmdbId" placeholder="TMDB ID" value="${req.query.tmdbId || ''}" />
-                   <select name="sortBy">
-                     <option value="">Sort By</option>
-                     ${validSortFields.map(field => `<option value="${field}" ${req.query.sortBy === field ? 'selected' : ''}>${field}</option>`).join('')}
-                   </select>
-                   <select name="sortOrder">
-                     <option value="desc" ${req.query.sortOrder === 'desc' ? 'selected' : ''}>Descending</option>
-                     <option value="asc" ${req.query.sortOrder === 'asc' ? 'selected' : ''}>Ascending</option>
-                   </select>
-                   <button type="submit">Search</button>
-               </form>
+                    <input type="text" name="name" placeholder="Directory Name" value="${req.query.name || ''}" />
+                    <input type="text" name="parsedName" placeholder="Parsed Name" value="${req.query.parsedName || ''}" />
+                    <input type="number" name="year" placeholder="Year" value="${req.query.year || ''}" />
+                    <input type="text" name="specialName" placeholder="Special Name" value="${req.query.specialName || ''}" />
+                    <input type="text" name="tmdbId" placeholder="TMDB ID" value="${req.query.tmdbId || ''}" />
+                    <!-- New: Type Filter Dropdown -->
+                    <select name="type">
+                        <option value="">All Types</option>
+                        <option value="movies" ${req.query.type === "movies" ? "selected" : ""}>Movies</option>
+                        <option value="shows" ${req.query.type === "shows" ? "selected" : ""}>Shows</option>
+                        <option value="collection" ${req.query.type === "collection" ? "selected" : ""}>Collection</option>
+                        <option value="unknown" ${req.query.type === "unknown" ? "selected" : ""}>Unknown</option>
+                        </select>
+                    <select name="sortBy">
+                        <option value="">Sort By</option>
+                        ${validSortFields.map(field => `<option value="${field}" ${req.query.sortBy === field ? 'selected' : ''}>${field}</option>`).join('')}
+                    </select>
+                    <select name="sortOrder">
+                        <option value="desc" ${req.query.sortOrder === 'desc' ? 'selected' : ''}>Descending</option>
+                        <option value="asc" ${req.query.sortOrder === 'asc' ? 'selected' : ''}>Ascending</option>
+                    </select>
+                    <button type="submit">Search</button>
+                </form>
 
                ${enrichedDirectories.map(dir => `
                    <div class="directory">

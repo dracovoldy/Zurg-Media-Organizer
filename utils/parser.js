@@ -4,7 +4,7 @@ function parseTitle(rawName) {
     // --- Step 1. Check for collection indicators ---
     // If the raw name contains "collection", "collections", or "bundle" (case insensitive),
     // mark type as "collection".
-    let type = "";
+    let type = "movies";
     if (/\b(collection|collections|bundle)\b/i.test(rawName)) {
         type = "collection";
     }
