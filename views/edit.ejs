@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Directory Record</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        label { display: block; font-weight: bold; margin-top: 10px; }
+        input[type="text"], input[type="number"], select { width: 300px; padding: 5px; }
+        .button-group { margin-top: 15px; }
+        a.button { display: inline-block; margin-right: 10px; padding: 8px 15px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 4px; }
+        a.button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Edit Directory Record</h1>
+    <h2><%= directory.name %></h2>
+    <p><strong>Path:</strong> <%= directory.path %></p>
+    <form action="/directory/<%= directory.id %>" method="POST">
+        <label for="parsedName">Parsed Name:</label>
+        <input type="text" name="parsedName" id="parsedName" value="<%= directory.parsedName || '' %>">
+        
+        <label for="parsedYear">Parsed Year:</label>
+        <input type="number" name="parsedYear" id="parsedYear" value="<%= directory.parsedYear || '' %>">
+        
+        <label for="parsedType">Parsed Type:</label>
+        <select name="parsedType" id="parsedType">
+            <option value="" <%= (directory.parsedType === null || directory.parsedType === '') ? 'selected' : '' %>>-- Select --</option>
+            <option value="movies" <%= directory.parsedType === 'movies' ? 'selected' : '' %>>Movies</option>
+            <option value="shows" <%= directory.parsedType === 'shows' ? 'selected' : '' %>>Shows</option>
+            <option value="collection" <%= directory.parsedType === 'collection' ? 'selected' : '' %>>Collection</option>
+        </select>
+        
+        <label for="specialName">Special Name:</label>
+        <input type="text" name="specialName" id="specialName" value="<%= directory.specialName || '' %>">
+        
+        <label for="tmdbId">TMDB ID:</label>
+        <input type="number" name="tmdbId" id="tmdbId" value="<%= directory.tmdbId || '' %>">
+        
+        <label for="tmdbStatus">TMDB Status:</label>
+        <select name="tmdbStatus" id="tmdbStatus">
+            <option value="" <%= (directory.tmdbStatus === null || directory.tmdbStatus === '') ? 'selected' : '' %>>-- Select --</option>
+            <option value="MATCH_FOUND" <%= directory.tmdbStatus === 'MATCH_FOUND' ? 'selected' : '' %>>MATCH_FOUND</option>
+            <option value="NO_MATCH_FOUND" <%= directory.tmdbStatus === 'NO_MATCH_FOUND' ? 'selected' : '' %>>NO_MATCH_FOUND</option>
+            <option value="API_DOWN" <%= directory.tmdbStatus === 'API_DOWN' ? 'selected' : '' %>>API_DOWN</option>
+            <option value="NETWORK_ERROR" <%= directory.tmdbStatus === 'NETWORK_ERROR' ? 'selected' : '' %>>NETWORK_ERROR</option>
+            <option value="SKIPPED_NO_PARSED_NAME" <%= directory.tmdbStatus === 'SKIPPED_NO_PARSED_NAME' ? 'selected' : '' %>>SKIPPED_NO_PARSED_NAME</option>
+        </select>
+        
+        <label for="libraryAdded">Library Added:</label>
+        <select name="libraryAdded" id="libraryAdded">
+            <option value="" <%= (directory.libraryAdded === null) ? 'selected' : '' %>>-- Select --</option>
+            <option value="true" <%= directory.libraryAdded === true ? 'selected' : '' %>>Yes</option>
+            <option value="false" <%= directory.libraryAdded === false ? 'selected' : '' %>>No</option>
+        </select>
+        
+        <label for="libraryPath">Library Path:</label>
+        <input type="text" name="libraryPath" id="libraryPath" value="<%= directory.libraryPath || '' %>">
+        
+        <div class="button-group">
+            <button type="submit">Update Directory</button>
+        </div>
+    </form>
+    
+    <div class="button-group">
+        <!-- Single entry actions -->
+        <a class="button" href="/directory/<%= directory.id %>/parse">Parse</a>
+        <a class="button" href="/directory/<%= directory.id %>/update-tmdb">Update TMDB</a>
+        <a class="button" href="/add-to-library/<%= directory.id %>">Add to Library</a>
+    </div>
+    
+    <div class="button-group">
+        <a class="button" href="/">Back to List</a>
+    </div>
+</body>
+</html>

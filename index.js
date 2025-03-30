@@ -7,7 +7,6 @@ const { PrismaClient } = require('@prisma/client');
 const chokidar = require('chokidar');
 const fs = require('fs').promises;
 const path = require('path');
-const Bottleneck = require('bottleneck');
 
 // My modules
 const { parseTitle } = require('./utils/parser');
@@ -25,6 +24,9 @@ const TMDB_TV_SEARCH_URL = 'https://api.themoviedb.org/3/search/tv';
 // Initialize Express and Prisma.
 const app = express();
 const prisma = new PrismaClient();
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 async function syncDirectory(dirPath) {
     // Prevent syncing if the directory already exists in the DB.
@@ -211,11 +213,11 @@ app.get('/parse', async (req, res) => {
             });
         }));
 
-      // Use a replacer function to serialize BigInt values as strings
-      const replacer = (key, value) => typeof value === "bigint" ? value.toString() : value;
-      res.setHeader("Content-Type", "application/json");
-      res.send(JSON.stringify(updatedDirectories, replacer));
-      
+        // Use a replacer function to serialize BigInt values as strings
+        const replacer = (key, value) => typeof value === "bigint" ? value.toString() : value;
+        res.setHeader("Content-Type", "application/json");
+        res.send(JSON.stringify(updatedDirectories, replacer));
+
     } catch (error) {
         console.error("Error updating directories:", error);
         res.status(500).send("An error occurred while parsing directories.");
@@ -385,6 +387,101 @@ app.post('/add-to-library', async (req, res) => {
     } catch (error) {
         console.error('Error in mass Add-to-Library:', error);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// GET endpoint to render edit page for a specific directory record
+app.get('/directory/:id/edit', async (req, res) => {
+    const id = req.params.id;
+    try {
+        const directory = await prisma.directory.findUnique({ where: { id } });
+        if (!directory) return res.status(404).send('Directory not found');
+        return res.render('edit', { directory });
+    } catch (error) {
+        console.error("Error fetching directory:", error);
+        return res.status(500).send("Internal Server Error");
+    }
+});
+
+// POST endpoint to update a directory record (excluding name and path)
+app.post('/directory/:id', async (req, res) => {
+    const id = req.params.id;
+    const data = {
+        parsedName: req.body.parsedName || null,
+        parsedYear: req.body.parsedYear ? parseInt(req.body.parsedYear, 10) : null,
+        parsedType: req.body.parsedType || null,
+        specialName: req.body.specialName || null,
+        tmdbId: req.body.tmdbId ? parseInt(req.body.tmdbId, 10) : null,
+        tmdbStatus: req.body.tmdbStatus || null,
+        libraryAdded: req.body.libraryAdded === "true" ? true : (req.body.libraryAdded === "false" ? false : null),
+        libraryPath: req.body.libraryPath || null,
+    };
+    try {
+        await prisma.directory.update({ where: { id }, data });
+        return res.redirect('/directory/' + id + '/edit');
+    } catch (error) {
+        console.error("Error updating directory:", error);
+        return res.status(500).send("Internal Server Error");
+    }
+});
+
+// GET endpoint to parse a single directory record using the parseTitle utility
+app.get('/directory/:id/parse', async (req, res) => {
+    const id = req.params.id;
+    try {
+        const directory = await prisma.directory.findUnique({ where: { id } });
+        if (!directory) return res.status(404).send('Directory not found');
+        const { parsed_name, parsed_year, type, specialName } = parseTitle(directory.name);
+        const parsedYearConverted = parsed_year && !isNaN(Number(parsed_year)) ? Number(parsed_year) : null;
+        await prisma.directory.update({
+            where: { id },
+            data: {
+                parsedName: parsed_name,
+                parsedYear: parsedYearConverted,
+                parsedType: type,
+                specialName: specialName
+            }
+        });
+        return res.redirect('/directory/' + id + '/edit');
+    } catch (error) {
+        console.error("Error parsing directory:", error);
+        return res.status(500).send("Internal Server Error");
+    }
+});
+
+// GET endpoint to update TMDB details for a single directory record
+app.get('/directory/:id/update-tmdb', async (req, res) => {
+    const id = req.params.id;
+    try {
+        const directory = await prisma.directory.findUnique({ where: { id } });
+        if (!directory) return res.status(404).send('Directory not found');
+        let updateData = {};
+        if ((!directory.parsedName) && (!directory.specialName)) {
+            updateData.tmdbStatus = "SKIPPED_NO_PARSED_NAME";
+        } else {
+            const queryName = (directory.specialName && directory.specialName.trim() !== "") ? directory.specialName : directory.parsedName;
+            try {
+                const foundTmdbId = await searchTmdb(queryName, directory.parsedType, directory.parsedYear);
+                if (foundTmdbId !== null) {
+                    updateData.tmdbId = foundTmdbId;
+                    updateData.tmdbStatus = "MATCH_FOUND";
+                } else {
+                    updateData.tmdbStatus = "NO_MATCH_FOUND";
+                }
+            } catch (e) {
+                console.error('Error in single TMDB update:', e);
+                if (e.message === 'API_DOWN') {
+                    updateData.tmdbStatus = "API_DOWN";
+                } else {
+                    updateData.tmdbStatus = "NETWORK_ERROR";
+                }
+            }
+        }
+        await prisma.directory.update({ where: { id }, data: updateData });
+        return res.redirect('/directory/' + id + '/edit');
+    } catch (error) {
+        console.error("Error updating TMDB:", error);
+        return res.status(500).send("Internal Server Error");
     }
 });
 
