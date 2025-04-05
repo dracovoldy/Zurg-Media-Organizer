@@ -16,11 +16,6 @@ const { searchTmdb, getTmdbDetails } = require('./utils/tmdb');
 // Directory to watch on the Linux system.
 const watchedDirectory = process.env.ZURG_ALL_PATH ? process.env.ZURG_ALL_PATH : '/mnt/zurg/__all__/';
 
-// TMDB API configuration Constants – ensure your .env file contains TMDB_BEARER_TOKEN
-const TMDB_BEARER_TOKEN = process.env.TMDB_BEARER_TOKEN;
-const TMDB_MOVIE_SEARCH_URL = 'https://api.themoviedb.org/3/search/movie';
-const TMDB_TV_SEARCH_URL = 'https://api.themoviedb.org/3/search/tv';
-
 // Initialize Express and Prisma.
 const app = express();
 const prisma = new PrismaClient();
@@ -301,11 +296,17 @@ app.post('/add-to-library/:id', async (req, res) => {
         });
         if (!directory) return res.status(404).json({ error: 'Directory not found' });
 
-        // Skip if already added unless override is true
-        if (directory.libraryAdded && !override) {
-            return res.status(200).json({ message: 'Directory already added', libraryPath: directory.libraryPath });
+        let existingDirectory = null;
+        if (!override) {
+            existingDirectory = await prisma.directory.findFirst({
+                where: {
+                    tmdbId: directory.tmdbId,
+                    libraryAdded: true
+                }
+            });
         }
 
+        let targetLibPath;
         // Process based on parsedType; currently only "movies" is implemented.
         if (directory.parsedType === 'movies') {
             // Ensure TMDB details are available (tmdbStatus MATCH_FOUND and tmdbId exists)
@@ -318,7 +319,11 @@ app.post('/add-to-library/:id', async (req, res) => {
             if (!tmdbInfo) return res.status(400).json({ error: 'Could not fetch TMDB details' });
 
             // Process the movie directory and create symlinks.
-            const targetLibPath = await processMovieDirectory(directory, tmdbInfo);
+            if (existingDirectory) {
+                targetLibPath = await processMovieDirectory(directory, tmdbInfo, existingDirectory.libraryPath);
+            } else {
+                targetLibPath = await processMovieDirectory(directory, tmdbInfo);
+            }
 
             // Update DB record with library info.
             const updatedDir = await prisma.directory.update({
@@ -359,13 +364,28 @@ app.post('/add-to-library', async (req, res) => {
         });
 
         const results = await Promise.all(directories.map(async (dir) => {
+            let existingDirectory = null;
+            if (!override) {
+                existingDirectory = await prisma.directory.findFirst({
+                    where: {
+                        tmdbId: dir.tmdbId,
+                        libraryAdded: true
+                    }
+                });
+            }
+
             if (dir.parsedType === 'movies') {
                 const tmdbInfo = await getTmdbDetails(dir.tmdbId, 'movie');
                 if (!tmdbInfo) {
                     return { id: dir.id, error: 'TMDB details missing' };
                 }
                 try {
-                    const targetLibPath = await processMovieDirectory(dir, tmdbInfo);
+                    let targetLibPath;
+                    if (existingDirectory) {
+                        targetLibPath = await processMovieDirectory(dir, tmdbInfo, existingDirectory.libraryPath);
+                    } else {
+                        targetLibPath = await processMovieDirectory(dir, tmdbInfo);
+                    }
                     const updated = await prisma.directory.update({
                         where: { id: dir.id },
                         data: { libraryAdded: true, libraryPath: targetLibPath },
@@ -451,6 +471,7 @@ app.get('/directory/:id/parse', async (req, res) => {
 
 // GET endpoint to update TMDB details for a single directory record
 app.get('/directory/:id/update-tmdb', async (req, res) => {
+
     const id = req.params.id;
     try {
         const directory = await prisma.directory.findUnique({ where: { id } });
