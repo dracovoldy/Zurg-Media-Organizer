@@ -1,0 +1,268 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root {
+  --primary-bg: #181a20;
+  --secondary-bg: #23262f;
+  --accent: #1f8ef1;
+  --accent-hover: #0d6efd;
+  --text-main: #f5f6fa;
+  --text-secondary: #b2becd;
+  --border: #31344b;
+  --success: #2ecc71;
+  --error: #e74c3c;
+  --card-radius: 14px;
+  --transition: 0.2s cubic-bezier(.4,0,.2,1);
+  --shadow: 0 2px 16px 0 rgba(31, 143, 241, 0.08);
+}
+html, body {
+  background: linear-gradient(135deg, #23262f 0%, #181a20 100%);
+  min-height: 100vh;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  box-sizing: border-box;
+  font-size: 15px;
+}
+body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100vw;
+  min-height: 100vh;
+}
+.edit-container {
+  background: rgba(35, 38, 47, 0.98);
+  border-radius: 22px;
+  box-shadow: 0 8px 32px 0 rgba(31,143,241,0.18), 0 1.5px 8px 0 rgba(31,143,241,0.10);
+  margin: 3.5rem auto 2rem auto;
+  padding: 1.2rem 1.2rem 1.5rem 1.2rem;
+  max-width: 1100px;
+  width: 90vw;
+  min-width: 0;
+  border: 1.5px solid var(--accent);
+  position: relative;
+  overflow: visible;
+  box-sizing: border-box;
+}
+h1, h2 {
+  color: var(--accent);
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+label {
+  display: block;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 0.3rem;
+  margin-bottom: 0.1rem;
+  letter-spacing: 0.01em;
+}
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  background: rgba(24,26,32,0.98);
+  color: var(--text-main);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.95rem;
+  margin-bottom: 0.1rem;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  outline: none;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px 0 rgba(31,143,241,0.04);
+}
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-hover);
+}
+.button-group {
+  margin-top: 1.2rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+button,
+a.button,
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  min-width: 110px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(90deg, var(--accent) 60%, var(--accent-hover) 100%);
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
+  box-shadow: 0 2px 8px 0 rgba(31,143,241,0.10);
+  letter-spacing: 0.01em;
+  gap: 0.3em;
+}
+button:hover, button:focus,
+a.button:hover, a.button:focus,
+.action-btn:hover, .action-btn:focus {
+  background: linear-gradient(90deg, var(--accent-hover) 60%, var(--accent) 100%);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 16px 0 rgba(31,143,241,0.18);
+}
+.action-btn {
+  background: linear-gradient(90deg, var(--success) 60%, #27ae60 100%);
+}
+.action-btn:hover, .action-btn:focus {
+  background: linear-gradient(90deg, #27ae60 60%, var(--success) 100%);
+}
+.edit-container p, .edit-container label {
+  font-size: 0.97rem;
+}
+
+/* Card summary for directory info */
+.dir-summary-card {
+  background: rgba(24,26,32,0.98);
+  border-radius: 16px;
+  border-left: 6px solid var(--accent);
+  padding: 1rem 1.2rem 1rem 1.2rem;
+  margin-bottom: 2.5rem;
+  box-shadow: 0 2px 16px 0 rgba(31,143,241,0.10);
+  position: relative;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.dir-summary-card h1 {
+  margin-bottom: 0.3rem;
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.dir-summary-card div, .dir-summary-card span {
+  margin-bottom: 0.4rem;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.dir-summary-card strong {
+  color: var(--text-secondary);
+}
+.dir-summary-card i {
+  color: var(--accent);
+  margin-right: 0.4em;
+}
+.dir-summary-card strong,
+.dir-summary-card h1,
+.dir-summary-card div,
+.dir-summary-card span {
+  color: var(--text-main) !important;
+}
+.dir-summary-card .label-secondary {
+  color: var(--text-secondary) !important;
+}
+
+/* Modal dialog improvements */
+#api-dialog.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0; top: 0; right: 0; bottom: 0;
+  background: rgba(24,26,32,0.55);
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s;
+}
+#api-dialog .modal-content {
+  background: rgba(35,38,47,0.92);
+  color: var(--text-main);
+  border-radius: 18px;
+  padding: 2.2rem 2.7rem;
+  box-shadow: 0 8px 32px 0 rgba(31,143,241,0.18);
+  border: 1.5px solid var(--accent);
+  max-width: 420px;
+  margin: auto;
+  position: relative;
+  backdrop-filter: blur(8px);
+  animation: popIn 0.25s;
+}
+#api-dialog .modal-close {
+  float: right;
+  font-size: 1.7rem;
+  cursor: pointer;
+  color: var(--accent);
+  transition: color 0.2s;
+}
+#api-dialog .modal-close:hover {
+  color: var(--error);
+}
+#api-dialog h2 {
+  margin-top: 0;
+  color: var(--accent);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+#api-dialog p {
+  margin-bottom: 0;
+  font-size: 1.08rem;
+}
+@keyframes fadeIn {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes popIn {
+  from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; }
+}
+::-webkit-scrollbar {
+  width: 8px;
+  background: var(--primary-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+@media (max-width: 1200px) {
+  .edit-container {
+    max-width: 98vw;
+    width: 98vw;
+    padding: 1.2rem 0.5rem 1.2rem 0.5rem;
+  }
+}
+@media (max-width: 700px) {
+  .edit-container {
+    padding: 1rem 0.5rem 1.5rem 0.5rem;
+    max-width: 99vw;
+    width: 99vw;
+  }
+  .dir-summary-card {
+    padding: 1rem 0.5rem 1rem 0.7rem;
+  }
+  html, body {
+    font-size: 16px;
+  }
+  .dir-summary-card h1 {
+    font-size: 1.15rem;
+  }
+}
+form > div[style*='grid-template-columns'] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem 1.2rem;
+  margin-bottom: 0.5rem;
+}
+form > h2 {
+  margin-bottom: 0.7rem;
+}

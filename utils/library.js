@@ -4,6 +4,7 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const isTestEnv = process.env.TESTING === 'true';
 
 const LIBRARY_BASE_PATH = process.env.LIBRARY_BASE_PATH || '/mnt/library';
 const allowedMediaExtensions = new Set([".mkv", ".mp4", ".avi", ".ts"]);
@@ -90,6 +91,13 @@ async function createSymlinkForFile(srcFilePath, destFilePath) {
     }
 }
 
+function getSymlinkTargetPath(originalPath) {
+  if (isTestEnv && process.env.TESTING_SYMLINK_PATH) {
+    return path.join(process.env.TESTING_SYMLINK_PATH, path.basename(originalPath));
+  }
+  return originalPath;
+}
+
 /**
  * Process a movie directory:
  * - Creates a library folder named "<tmdb title> (<year>) [tmdbid-<tmdbid>]"
@@ -143,12 +151,15 @@ async function processMovieDirectory(directory, tmdbInfo, existingLibraryPath = 
             // For non-media files, just preserve the original file name.
             destFilePath = path.join(targetDir, file.name);
         }
-        await createSymlinkForFile(srcFilePath, destFilePath);
+        // Use getSymlinkTargetPath for symlink creation
+        const targetPath = getSymlinkTargetPath(destFilePath);
+        await createSymlinkForFile(srcFilePath, targetPath);
     }
     return targetDir;
 }
 
 module.exports = {
     getTargetCategoryFolder,
-    processMovieDirectory
+    processMovieDirectory,
+    getSymlinkTargetPath // Export for use in controller
 };

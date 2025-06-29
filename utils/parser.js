@@ -1,21 +1,23 @@
 'use strict';
 
 function parseTitle(rawName) {
-    // --- Step 1. Check for collection indicators ---
-    // If the raw name contains "collection", "collections", or "bundle" (case insensitive),
-    // mark type as "collection".
+    // --- Step 0. Check for Formula 1 (sports-f1) indicators ---
+    // Match patterns like "Formula 1 2025x10" or "Formula.1.2025x10"
+    const f1Regex = /formula[\s\.]?1[\s\.]?(19|20)\d{2}x\d{1,2}/i;
     let type = "movies";
-    if (/\b(collection|collections|bundle)\b/i.test(rawName)) {
+    if (f1Regex.test(rawName)) {
+        type = "sports-f1";
+    } else if (/\b(collection|collections|bundle)\b/i.test(rawName)) {
         type = "collection";
-    }
-
-    // --- Step 2. Check for TV-show keywords ---
-    // Look for common TV show indicators:
-    // e.g., "season", or patterns like "S01" or "S01E02"
-    const tvShowRegex = /\b(season|\bs\d{1,2}(?:e\d{1,2})?)\b/i;
-    let tvShowIndex = rawName.search(tvShowRegex);
-    if (tvShowIndex !== -1) {
-        type = "shows";
+    } else {
+        // --- Step 2. Check for TV-show keywords ---
+        // Look for common TV show indicators:
+        // e.g., "season", or patterns like "S01" or "S01E02"
+        const tvShowRegex = /\b(season|\bs\d{1,2}(?:e\d{1,2})?)\b/i;
+        let tvShowIndex = rawName.search(tvShowRegex);
+        if (tvShowIndex !== -1) {
+            type = "shows";
+        }
     }
 
     // --- Step 3. Extract the Year ---
@@ -25,6 +27,27 @@ function parseTitle(rawName) {
     const upperBound = 2030;
     let parsedYear = null;
     let yearIndex = Infinity; // we'll choose the leftmost valid occurrence
+
+    // TODO: If sports-f1 type then Season Number is the year
+    let seasonNumber = null;
+    let raceNumber = null;
+    let metadata = undefined;
+    if (type === "sports-f1") {
+        // Extract season (year) and race number from the Formula 1 pattern
+        const f1DetailRegex = /formula[\s\.]?1[\s\.]?((19|20)\d{2})x(\d{1,2})/i;
+        const match = rawName.match(f1DetailRegex);
+        if (match) {
+            seasonNumber = parseInt(match[1], 10);
+            raceNumber = parseInt(match[3], 10);
+            parsedYear = seasonNumber; // Update parsedYear for F1
+            metadata = {
+                f1: {
+                    season: seasonNumber,
+                    race: raceNumber
+                }
+            };
+        }
+    }
 
     for (const match of rawName.matchAll(regexYear)) {
         const candidate = match[0];
@@ -41,11 +64,19 @@ function parseTitle(rawName) {
     // We want the title only from the raw string up to (but not including) the TV-show keyword or the year,
     // whichever comes first.
     let cutoffIndex = rawName.length;
-    if (tvShowIndex !== -1) {
-        cutoffIndex = Math.min(cutoffIndex, tvShowIndex);
-    }
-    if (parsedYear !== null && yearIndex !== Infinity) {
-        cutoffIndex = Math.min(cutoffIndex, yearIndex);
+    // For F1, cutoff at the end of the "Formula 1 YYYYxNN" match if present
+    let f1Match = rawName.match(f1Regex);
+    if (type === "sports-f1" && f1Match && f1Match.index !== undefined) {
+        cutoffIndex = f1Match.index + f1Match[0].length;
+    } else {
+        const tvShowRegex = /\b(season|\bs\d{1,2}(?:e\d{1,2})?)\b/i;
+        let tvShowIndex = rawName.search(tvShowRegex);
+        if (tvShowIndex !== -1) {
+            cutoffIndex = Math.min(cutoffIndex, tvShowIndex);
+        }
+        if (parsedYear !== null && yearIndex !== Infinity) {
+            cutoffIndex = Math.min(cutoffIndex, yearIndex);
+        }
     }
 
     // Extract all text before the determined cutoff
@@ -86,6 +117,10 @@ function parseTitle(rawName) {
     // Include the specialName property if defined
     if (specialName !== undefined) {
         result.specialName = specialName;
+    }
+    // Include metadata if present
+    if (metadata !== undefined) {
+        result.metadata = metadata;
     }
 
     return result;
