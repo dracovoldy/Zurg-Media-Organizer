@@ -20,8 +20,12 @@ const watchedDirectory = process.env.ZURG_ALL_PATH ? process.env.ZURG_ALL_PATH :
 const app = express();
 const prisma = new PrismaClient();
 
+// app specific consts
+const PAGE_SIZE = 25;
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 async function syncDirectory(dirPath) {
     // Prevent syncing if the directory already exists in the DB.
@@ -69,10 +73,27 @@ async function syncDirectory(dirPath) {
 }
 
 const watcher = chokidar.watch(watchedDirectory, {
+    // usePolling: true,
     persistent: true,
+    followSymlinks: true,
+    waitWriteFinish: true, // emit single event when chunked writes are completed
+    atomic: true, // emit proper events when "atomic writes" (mv _tmp file) are used
     depth: 1,            // Only immediate children directories.
     ignoreInitial: false // Ignore existing directories on start.
 });
+
+// const watcher = chokidar.watch(watchedDirectory, {
+//     ignoreInitial: true,
+//     disableGlobbing: true,
+//     usePolling: false,
+//     useFsEvents: true,
+//     persistent: true,
+//     alwaysStat: true,
+//     atomic: true,
+//     followSymlinks: true,
+//     depth: 1,
+// });
+
 
 watcher.on('addDir', async (dirPath) => {
     // Ignore the root watched directory itself.
@@ -96,7 +117,7 @@ app.get('/', async (req, res) => {
         // --- Pagination logic ---
         let page = parseInt(req.query.page, 10) || 1;
         if (page < 1) page = 1;
-        const limit = 50;
+        const limit = PAGE_SIZE;
         const skip = (page - 1) * limit;
 
         // --- Build filtering conditions from query parameters ---
@@ -182,6 +203,7 @@ app.get('/', async (req, res) => {
     }
 });
 
+
 app.get('/parse', async (req, res) => {
     try {
         const directories = await prisma.directory.findMany({
@@ -218,6 +240,7 @@ app.get('/parse', async (req, res) => {
         res.status(500).send("An error occurred while parsing directories.");
     }
 });
+
 
 app.get('/update-tmdb', async (req, res) => {
     try {
@@ -287,6 +310,22 @@ app.get('/update-tmdb', async (req, res) => {
     }
 });
 
+// New manual sync endpoint to add a new folder via POST request.
+app.post('/manual-sync', async (req, res) => {
+    const dirPath = req.body.dirPath ? req.body.dirPath : process.env.ZURG_ALL_PATH;
+
+    if (!dirPath) {
+        return res.status(400).json({ error: 'Directory path ("dirPath") is required in the request body.' });
+    }
+    try {
+        await syncDirectory(dirPath);
+        return res.status(200).json({ message: `Successfully synced directory ${dirPath}` });
+    } catch (error) {
+        console.error(`Manual sync error for ${dirPath}:`, error);
+        return res.status(500).json({ error: 'Failed to sync directory' });
+    }
+});
+
 app.post('/add-to-library/:id', async (req, res) => {
     try {
         const override = req.query.override === 'true';
@@ -346,6 +385,7 @@ app.post('/add-to-library/:id', async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
+
 
 // Mass add "Add to Media Library" endpoint
 app.post('/add-to-library', async (req, res) => {
@@ -410,6 +450,7 @@ app.post('/add-to-library', async (req, res) => {
     }
 });
 
+
 // GET endpoint to render edit page for a specific directory record
 app.get('/directory/:id/edit', async (req, res) => {
     const id = req.params.id;
@@ -422,6 +463,7 @@ app.get('/directory/:id/edit', async (req, res) => {
         return res.status(500).send("Internal Server Error");
     }
 });
+
 
 // POST endpoint to update a directory record (excluding name and path)
 app.post('/directory/:id', async (req, res) => {
@@ -444,6 +486,7 @@ app.post('/directory/:id', async (req, res) => {
         return res.status(500).send("Internal Server Error");
     }
 });
+
 
 // GET endpoint to parse a single directory record using the parseTitle utility
 app.get('/directory/:id/parse', async (req, res) => {
@@ -468,6 +511,7 @@ app.get('/directory/:id/parse', async (req, res) => {
         return res.status(500).send("Internal Server Error");
     }
 });
+
 
 // GET endpoint to update TMDB details for a single directory record
 app.get('/directory/:id/update-tmdb', async (req, res) => {
@@ -505,6 +549,7 @@ app.get('/directory/:id/update-tmdb', async (req, res) => {
         return res.status(500).send("Internal Server Error");
     }
 });
+
 
 // Start the Express server on port.
 const PORT = process.env.PORT || 4004;

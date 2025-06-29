@@ -1,205 +1,475 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
-  <title>Directory Sync Status</title>
-  <style>
-      body { font-family: Arial, sans-serif; margin: 20px; }
-      h1 { color: #333; }
-      .directory { border: 1px solid #ccc; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
-      .filename { margin-left: 20px; }
-      .tmdb { margin-top: 10px; display: flex; }
-      .tmdb img { max-width: 150px; }
-      .tmdb-details { margin-left: 20px; }
-      .tmdb-status { color: red; margin-top: 10px; }
-      
-      /* Search form styling */
-      .search-form { margin-bottom: 20px; }
-      .search-form input, .search-form select {
-          margin-right: 10px;
-          padding: 5px;
-      }
-      .search-form button {
-          padding: 5px 10px;
-      }
-      
-      /* Pagination Floating Pill Styling */
-      .pagination-container {
-        position: fixed;
-        bottom: 0;
-        right: 20px;
-        background: rgba(50, 50, 50, 0.8);
-        border-radius: 50px;
-        padding: 5px 10px;
-        transform: translateY(90%);
-        transition: transform 0.3s ease;
-        z-index: 1000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .pagination-container:hover {
-        transform: translateY(0);
-      }
-      .pagination-container a.page-link {
-        margin: 0 5px;
-        padding: 8px 12px;
-        text-decoration: none;
-        background-color: #f0f0f0;
-        color: #333;
-        border-radius: 4px;
-        transition: background-color 0.3s;
-      }
-      .pagination-container a.page-link:hover {
-        background-color: #ccc;
-      }
-      .pagination-container a.page-link.active {
-        font-weight: bold;
-        background-color: #333;
-        color: #fff;
-      }
-      
-      /* Files collapse styling */
-      .files { margin-top: 10px; }
-      .toggle-btn {
-        margin-top: 10px;
-        padding: 5px 10px;
-        background-color: #007BFF;
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-      }
-
-      /* New action buttons styling */
-      .action-buttons {
-        margin-top: 10px;
-      }
-      .action-buttons a.edit-btn {
-        display: inline-block;
-        margin-right: 10px;
-        padding: 5px 10px;
-        background-color: #28a745;
-        color: #fff;
-        text-decoration: none;
-        border-radius: 4px;
-      }
-      .action-buttons a.edit-btn:hover {
-        background-color: #218838;
-      }
-    </style>
+  <title>Media-Symlink Organizer</title>
+  <link rel="stylesheet" href="/css/home-styles.css" />
 </head>
+
 <body>
-  <h1>Synced Directories</h1>
+  <!-- <h1>Synced Directories</h1> -->
+
   <!-- Search Form -->
   <form class="search-form" method="GET" action="/">
-      <input type="text" name="name" placeholder="Directory Name" value="<%= query.name || '' %>" />
-      <input type="text" name="parsedName" placeholder="Parsed Name" value="<%= query.parsedName || '' %>" />
-      <input type="number" name="year" placeholder="Year" value="<%= query.year || '' %>" />
-      <input type="text" name="specialName" placeholder="Special Name" value="<%= query.specialName || '' %>" />
-      <input type="text" name="tmdbId" placeholder="TMDB ID" value="<%= query.tmdbId || '' %>" />
-      <!-- New: Type Filter Dropdown -->
-      <select name="type">
-        <option value="">All Types</option>
-        <option value="movies" <%= query.type === 'movies' ? 'selected' : '' %>>Movies</option>
-        <option value="shows" <%= query.type === 'shows' ? 'selected' : '' %>>Shows</option>
-        <option value="collection" <%= query.type === 'collection' ? 'selected' : '' %>>Collection</option>
-        <option value="unknown" <%= query.type === 'unknown' ? 'selected' : '' %>>Unknown</option>
-      </select>
-      <!-- New: Library Status Filter Dropdown -->
-      <select name="libraryStatus">
-        <option value="">All Library Status</option>
-        <option value="added" <%= query.libraryStatus === 'added' ? 'selected' : '' %>>Added</option>
-        <option value="notAdded" <%= query.libraryStatus === 'notAdded' ? 'selected' : '' %>>Not Added</option>
-      </select>
-      <select name="sortBy">
-        <option value="">Sort By</option>
-        <% for (let i = 0; i < validSortFields.length; i++) { %>
-          <option value="<%= validSortFields[i] %>" <%= query.sortBy === validSortFields[i] ? 'selected' : '' %>><%= validSortFields[i] %></option>
+    <input type="text" name="name" placeholder="Directory Name" value="<%= query.name || '' %>" />
+    <input type="text" name="parsedName" placeholder="Parsed Name" value="<%= query.parsedName || '' %>" />
+    <input type="number" name="year" placeholder="Year" value="<%= query.year || '' %>" />
+    <input type="text" name="specialName" placeholder="Special Name" value="<%= query.specialName || '' %>" />
+    <input type="text" name="tmdbId" placeholder="TMDB ID" value="<%= query.tmdbId || '' %>" />
+    <!-- New: Type Filter Dropdown -->
+    <select name="type">
+      <option value="">All Types</option>
+      <option value="movies" <%=query.type==='movies' ? 'selected' : '' %>>Movies</option>
+      <option value="shows" <%=query.type==='shows' ? 'selected' : '' %>>Shows</option>
+      <option value="collection" <%=query.type==='collection' ? 'selected' : '' %>>Collection</option>
+      <option value="unknown" <%=query.type==='unknown' ? 'selected' : '' %>>Unknown</option>
+    </select>
+    <!-- New: Library Status Filter Dropdown -->
+    <select name="libraryStatus">
+      <option value="">All Library Status</option>
+      <option value="added" <%=query.libraryStatus==='added' ? 'selected' : '' %>>Added</option>
+      <option value="notAdded" <%=query.libraryStatus==='notAdded' ? 'selected' : '' %>>Not Added</option>
+    </select>
+    <select name="sortBy">
+      <option value="">Sort By</option>
+      <% for (let i=0; i < validSortFields.length; i++) { %>
+        <option value="<%= validSortFields[i] %>" <%=query.sortBy===validSortFields[i] ? 'selected' : '' %>><%=
+            validSortFields[i] %>
+        </option>
         <% } %>
-      </select>
-      <select name="sortOrder">
-        <option value="desc" <%= query.sortOrder === 'desc' ? 'selected' : '' %>>Descending</option>
-        <option value="asc" <%= query.sortOrder === 'asc' ? 'selected' : '' %>>Ascending</option>
-      </select>
-      <button type="submit">Search</button>
+    </select>
+    <select name="sortOrder">
+      <option value="desc" <%=query.sortOrder==='desc' ? 'selected' : '' %>>Descending</option>
+      <option value="asc" <%=query.sortOrder==='asc' ? 'selected' : '' %>>Ascending</option>
+    </select>
+    <button type="submit" class="btn btn-search">Search</button>
   </form>
-  
-  <% enrichedDirectories.forEach(function(dir) { %>
-      <div class="directory">
-          <h2><%= dir.name %></h2>
-          <div><strong>Path:</strong> <%= dir.path %></div>
-          <div><strong>Parsed Name:</strong> <%= dir.parsedName || 'N/A' %></div>
-          <div><strong>Parsed Year:</strong> <%= dir.parsedYear ? dir.parsedYear : 'N/A' %></div>
-          <div><strong>Parsed Type:</strong> <%= dir.parsedType || 'N/A' %></div>
-          <div><strong>Special Name:</strong> <%= dir.specialName || 'N/A' %></div>
-          <% if (dir.tmdbInfo) { %>
-            <div class="tmdb">
-                <img src="https://image.tmdb.org/t/p/w200/<%= dir.tmdbInfo.poster_path %>" alt="Poster">
-                <div class="tmdb-details">
-                    <div><strong>TMDB Title:</strong> <%= dir.tmdbInfo.title || dir.tmdbInfo.name %></div>
-                    <div><strong>Release Date:</strong> <%= dir.tmdbInfo.release_date || dir.tmdbInfo.first_air_date %></div>
-                    <div><strong>Overview:</strong> <%= dir.tmdbInfo.overview || 'N/A' %></div>
-                </div>
-            </div>
-          <% } else { %>
-            <div class="tmdb-status"><strong>TMDB Status:</strong> <%= dir.tmdbStatus || 'N/A' %></div>
-          <% } %>
 
-          <!-- Library status display -->
-          <% if (dir.libraryAdded) { %>
-            <div><strong>Library:</strong> Added (<%= dir.libraryPath %>)</div>
-          <% } else { %>
-            <div><strong>Library:</strong> Not Added</div>
-          <% } %>
-  
-          <!-- Action Buttons Group -->
-          <div class="action-buttons">
-              <a class="edit-btn" href="/directory/<%= dir.id %>/edit">Edit Directory</a>
-              <button class="toggle-btn" data-target="files-<%= dir.id %>">Show Files</button>
-          </div>
-          <div id="files-<%= dir.id %>" class="files" style="display:none;">
-              <strong>Files:</strong>
-              <ul>
-                <% dir.files.forEach(function(file) { %>
-                  <li class="filename"><%= file.name %> – <%= file.size %> bytes</li>
-                <% }) %>
-              </ul>
-          </div>
-
-      </div>
-  <% }); %>
-  
-  <!-- Pagination Controls -->
-  <div class="pagination-container">
-      <% if (page > 1) { %>
-         <a class="page-link" href="/?page=<%= page - 1 %>">Previous</a>
-      <% } %>
-      <% for (let i = 1; i <= totalPages; i++) { %>
-         <a class="page-link <%= (i === page ? 'active' : '') %>" href="/?page=<%= i %>"><%= i %></a>
-      <% } %>
-      <% if (page < totalPages) { %>
-         <a class="page-link" href="/?page=<%= page + 1 %>">Next</a>
-      <% } %>
+  <!-- Mass Actions -->
+  <div class="mass-actions">
+    <!-- Changed from anchor to button with data attributes -->
+    <!-- <button class="btn btn-mass btn-api" data-endpoint="/manual-sync" data-method="POST">Manual Sync</button> -->
+    <button class="btn btn-mass btn-api" data-endpoint="/parse" data-method="GET">Parse All</button>
+    <button class="btn btn-mass btn-api" data-endpoint="/update-tmdb" data-method="GET">Update TMDB All</button>
+    <button class="btn btn-mass btn-api" data-endpoint="/add-to-library" data-method="POST">Add All to Library</button>
   </div>
-  
-  <!-- JS for toggling files -->
-  <script>
-    document.addEventListener("DOMContentLoaded", function(){
-      document.querySelectorAll('.toggle-btn').forEach(button => {
-        button.addEventListener('click', function(){
-          var targetId = this.getAttribute("data-target");
-          var fileContainer = document.getElementById(targetId);
-          if (fileContainer.style.display === "none") {
-            fileContainer.style.display = "block";
-            this.textContent = "Hide Files";
-          } else {
-            fileContainer.style.display = "none";
-            this.textContent = "Show Files";
+
+  <% enrichedDirectories.forEach(function(dir) { %>
+    <div class="directory">
+      <h2>
+        <%= dir.name %>
+      </h2>
+      <div><strong>Path:</strong>
+        <%= dir.path %>
+      </div>
+      <div><strong>Parsed Name:</strong>
+        <%= dir.parsedName || 'N/A' %>
+      </div>
+      <div><strong>Parsed Year:</strong>
+        <%= dir.parsedYear ? dir.parsedYear : 'N/A' %>
+      </div>
+      <div><strong>Parsed Type:</strong>
+        <%= dir.parsedType || 'N/A' %>
+      </div>
+      <div><strong>Special Name:</strong>
+        <%= dir.specialName || 'N/A' %>
+      </div>
+      <% if (dir.tmdbInfo) { %>
+        <div class="tmdb">
+          <img src="https://image.tmdb.org/t/p/w200/<%= dir.tmdbInfo.poster_path %>" alt="Poster">
+          <div class="tmdb-details">
+            <div><strong>TMDB ID:</strong>
+              <%= dir.tmdbId || 'N/A' %>
+            </div>
+            <div><strong>TMDB Title:</strong>
+              <%= dir.tmdbInfo.title || dir.tmdbInfo.name %>
+            </div>
+            <div><strong>Release Date:</strong>
+              <%= dir.tmdbInfo.release_date || dir.tmdbInfo.first_air_date %>
+            </div>
+            <div><strong>Overview:</strong>
+              <%= dir.tmdbInfo.overview || 'N/A' %>
+            </div>
+          </div>
+        </div>
+        <% } else { %>
+          <div class="tmdb-status"><strong>TMDB Status:</strong>
+            <%= dir.tmdbStatus || 'N/A' %>
+          </div>
+          <% } %>
+
+            <!-- Library status display -->
+            <% if (dir.libraryAdded) { %>
+              <div><strong>Library:</strong> Added (<%= dir.libraryPath %>)</div>
+              <% } else { %>
+                <div><strong>Library:</strong> Not Added</div>
+                <% } %>
+
+                  <!-- Action Buttons Group -->
+                  <div class="action-buttons">
+                    <!-- Changed edit link to a button with an API call -->
+                    <button class="btn btn-edit" onclick="window.location.href='/directory/<%= dir.id %>/edit'">Edit Directory</button>
+                    <button class="btn btn-toggle" data-target="files-<%= dir.id %>">Show Files</button>
+                  </div>
+                  <div id="files-<%= dir.id %>" class="files" style="display:none;">
+                    <strong>Files:</strong>
+                    <ul>
+                      <% dir.files.forEach(function(file) { %>
+                        <li class="filename">
+                          <%= file.name %> – <%= file.size %> bytes
+                        </li>
+                        <% }) %>
+                    </ul>
+                  </div>
+    </div>
+    <% }); %>
+
+      <!-- Pagination Controls -->
+      <div class="pagination-container">
+        <% 
+          // Helper to build query string with updated page param
+          function buildPageUrl(targetPage) {
+            const params = [];
+            for (const key in query) {
+              if (key !== 'page' && query[key] !== undefined && query[key] !== '') {
+                params.push(encodeURIComponent(key) + '=' + encodeURIComponent(query[key]));
+              }
+            }
+            params.push('page=' + targetPage);
+            return '/?' + params.join('&');
           }
+        %>
+        <% if (page > 1) { %>
+          <a class="page-link" href="<%= buildPageUrl(page - 1) %>">Previous</a>
+        <% } %>
+        <% for (let i = 1; i <= totalPages; i++) { %>
+          <a class="page-link <%= (i === page ? 'active' : '') %>" href="<%= buildPageUrl(i) %>">
+            <%= i %>
+          </a>
+        <% } %>
+        <% if (page < totalPages) { %>
+          <a class="page-link" href="<%= buildPageUrl(page + 1) %>">Next</a>
+        <% } %>
+      </div>
+
+      <!-- Modal dialog for API responses -->
+      <div id="api-dialog" class="modal">
+        <div class="modal-content">
+          <span class="modal-close" onclick="closeDialog()">&times;</span>
+          <h2 id="api-dialog-title"></h2>
+          <p id="api-dialog-message"></p>
+        </div>
+      </div>
+
+      <style>
+        :root {
+          --primary-bg: #181a20;
+          --secondary-bg: #23262f;
+          --accent: #1f8ef1;
+          --accent-hover: #0d6efd;
+          --text-main: #f5f6fa;
+          --text-secondary: #b2becd;
+          --border: #31344b;
+          --success: #2ecc71;
+          --error: #e74c3c;
+          --card-radius: 14px;
+          --transition: 0.2s cubic-bezier(.4,0,.2,1);
+          --shadow: 0 2px 16px 0 rgba(31, 143, 241, 0.08);
+        }
+        html, body {
+          background: var(--primary-bg);
+          color: var(--text-main);
+          font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+          margin: 0;
+          padding: 0;
+          min-height: 100vh;
+        }
+        .search-form {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+          background: var(--secondary-bg);
+          padding: 1.5rem 2rem;
+          border-radius: var(--card-radius);
+          box-shadow: var(--shadow);
+          margin: 2rem auto 1.5rem auto;
+          max-width: 900px;
+          justify-content: center;
+        }
+        .search-form input,
+        .search-form select {
+          background: var(--primary-bg);
+          color: var(--text-main);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.5rem 1rem;
+          font-size: 1rem;
+          transition: border-color var(--transition);
+          outline: none;
+        }
+        .search-form input:focus,
+        .search-form select:focus {
+          border-color: var(--accent);
+        }
+        .btn {
+          background: var(--accent);
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          padding: 0.5rem 1.2rem;
+          font-size: 1rem;
+          cursor: pointer;
+          transition: background var(--transition), box-shadow var(--transition);
+          box-shadow: 0 2px 8px 0 rgba(31, 143, 241, 0.10);
+        }
+        .btn:hover, .btn:focus {
+          background: var(--accent-hover);
+        }
+        .btn-mass {
+          margin-right: 1rem;
+          margin-bottom: 1rem;
+        }
+        .mass-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+          justify-content: center;
+          margin-bottom: 2rem;
+        }
+        .directory {
+          background: var(--secondary-bg);
+          border-radius: var(--card-radius);
+          box-shadow: var(--shadow);
+          margin: 1.5rem auto;
+          padding: 1.5rem 2rem;
+          max-width: 900px;
+          transition: box-shadow var(--transition);
+          border: 1px solid var(--border);
+        }
+        .directory h2 {
+          margin-top: 0;
+          color: var(--accent);
+          font-size: 1.5rem;
+          letter-spacing: 0.5px;
+        }
+        .directory strong {
+          color: var(--text-secondary);
+          font-weight: 500;
+        }
+        .tmdb {
+          display: flex;
+          gap: 1.2rem;
+          align-items: flex-start;
+          margin: 1rem 0;
+        }
+        .tmdb img {
+          border-radius: 10px;
+          box-shadow: 0 2px 8px 0 rgba(31, 143, 241, 0.10);
+          width: 100px;
+          height: auto;
+          background: #222;
+        }
+        .tmdb-details {
+          flex: 1;
+          color: var(--text-main);
+        }
+        .tmdb-status {
+          color: var(--error);
+          margin: 1rem 0;
+        }
+        .action-buttons {
+          display: flex;
+          gap: 1rem;
+          margin: 1.2rem 0 0.5rem 0;
+          flex-wrap: wrap;
+        }
+        .btn-edit {
+          background: var(--success);
+        }
+        .btn-edit:hover, .btn-edit:focus {
+          background: #27ae60;
+        }
+        .btn-toggle {
+          background: var(--accent);
+        }
+        .files {
+          background: var(--primary-bg);
+          border-radius: 8px;
+          margin: 1rem 0 0 0;
+          padding: 1rem;
+          border: 1px solid var(--border);
+          color: var(--text-secondary);
+          font-size: 0.98rem;
+          box-shadow: 0 1px 4px 0 rgba(31, 143, 241, 0.05);
+        }
+        .filename {
+          margin-bottom: 0.3rem;
+          word-break: break-all;
+        }
+        .pagination-container {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 0.5rem;
+          margin: 2.5rem 0 1.5rem 0;
+        }
+        .page-link {
+          color: var(--accent);
+          background: var(--primary-bg);
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          padding: 0.4rem 0.9rem;
+          text-decoration: none;
+          font-size: 1rem;
+          margin: 0 0.1rem;
+          transition: background var(--transition), color var(--transition);
+        }
+        .page-link.active, .page-link:hover, .page-link:focus {
+          background: var(--accent);
+          color: #fff;
+        }
+        /* Modal styles (override) */
+        .modal {
+          display: none;
+          position: fixed;
+          z-index: 1000;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          overflow: auto;
+          background-color: rgba(24,26,32,0.85);
+        }
+        .modal-content {
+          background-color: var(--secondary-bg);
+          margin: 10% auto;
+          padding: 24px 20px 18px 20px;
+          border: 1px solid var(--border);
+          width: 90%;
+          max-width: 400px;
+          border-radius: 10px;
+          text-align: center;
+          color: var(--text-main);
+          box-shadow: var(--shadow);
+        }
+        .modal-close {
+          color: var(--text-secondary);
+          float: right;
+          font-size: 28px;
+          font-weight: bold;
+          cursor: pointer;
+          margin-top: -8px;
+        }
+        .modal-close:hover,
+        .modal-close:focus {
+          color: #fff;
+          text-decoration: none;
+        }
+        @media (max-width: 600px) {
+          .search-form, .directory {
+            padding: 1rem 0.5rem;
+            max-width: 98vw;
+          }
+          .tmdb {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .tmdb img {
+            width: 80px;
+          }
+          .modal-content {
+            width: 98vw;
+            padding: 16px 4px 12px 4px;
+          }
+        }
+        ::selection {
+          background: var(--accent);
+          color: #fff;
+        }
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+          width: 8px;
+          background: var(--primary-bg);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: var(--border);
+          border-radius: 8px;
+        }
+      </style>
+
+      <!-- JS for API calls and toggling files -->
+      <script>
+        async function apiCall(endpoint, method = 'GET') {
+          try {
+            const response = await fetch(endpoint, {
+              method,
+              headers: {
+                'Accept': 'application/json'
+              }
+            });
+            const contentType = response.headers.get("Content-Type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+              const result = await response.json();
+              if (response.ok) {
+                showDialog("success", result.message || response.statusText);
+              } else {
+                showDialog("error", result.error || response.statusText);
+              }
+            } else {
+              // Fallback to text if the content is not JSON
+              const resultText = await response.text();
+              if (response.ok) {
+                showDialog("success", resultText);
+              } else {
+                showDialog("error", resultText);
+              }
+            }
+          } catch (error) {
+            showDialog("error", error.message);
+          }
+        }
+
+        function showDialog(type, message) {
+          const dialog = document.getElementById("api-dialog");
+          const dialogTitle = document.getElementById("api-dialog-title");
+          const dialogMessage = document.getElementById("api-dialog-message");
+          dialogTitle.textContent = type === "success" ? "Success" : "Error";
+          dialogMessage.textContent = message;
+          dialog.style.display = "block";
+        }
+
+        function closeDialog() {
+          document.getElementById("api-dialog").style.display = "none";
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+          // Attach API call behavior to buttons with class btn-api
+          document.querySelectorAll('.btn-api').forEach(button => {
+            button.addEventListener('click', function (e) {
+              e.preventDefault();
+              const endpoint = button.getAttribute('data-endpoint');
+              const method = button.getAttribute('data-method') || 'GET';
+              apiCall(endpoint, method);
+            });
+          });
+
+          // Toggle files display
+          document.querySelectorAll('.btn-toggle').forEach(button => {
+            button.addEventListener('click', function () {
+              var targetId = button.getAttribute("data-target");
+              var fileContainer = document.getElementById(targetId);
+              if (fileContainer.style.display === "none") {
+                fileContainer.style.display = "block";
+                button.textContent = "Hide Files";
+              } else {
+                fileContainer.style.display = "none";
+                button.textContent = "Show Files";
+              }
+            });
+          });
         });
-      });
-    });
-  </script>
+      </script>
 </body>
+
 </html>

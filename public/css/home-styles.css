@@ -1,0 +1,207 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+h1 {
+    color: #333;
+}
+
+.directory {
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.filename {
+    margin-left: 20px;
+}
+
+.tmdb {
+    margin-top: 10px;
+    display: flex;
+}
+
+.tmdb img {
+    max-width: 150px;
+}
+
+.tmdb-details {
+    margin-left: 20px;
+}
+
+.tmdb-status {
+    color: red;
+    margin-top: 10px;
+}
+
+/* Search form styling */
+.search-form {
+    margin-bottom: 20px;
+}
+
+.search-form input,
+.search-form select {
+    margin-right: 10px;
+    padding: 5px;
+}
+
+.search-form button {
+    padding: 5px 10px;
+}
+
+/* Mass actions styling */
+.mass-actions {
+    margin-bottom: 20px;
+}
+
+.mass-actions a.mass-btn,
+.mass-actions button.mass-btn {
+    margin-right: 10px;
+    padding: 6px 12px;
+    background-color: #17a2b8;
+    color: #fff;
+    text-decoration: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.mass-actions a.mass-btn:hover,
+.mass-actions button.mass-btn:hover {
+    background-color: #138496;
+}
+
+/* Pagination Floating Pill Styling */
+.pagination-container {
+    position: fixed;
+    bottom: 0;
+    right: 20px;
+    background: rgba(50, 50, 50, 0.8);
+    border-radius: 50px;
+    padding: 5px 10px;
+    transform: translateY(90%);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination-container:hover {
+    transform: translateY(0);
+}
+
+.pagination-container a.page-link {
+    margin: 0 5px;
+    padding: 8px 12px;
+    text-decoration: none;
+    background-color: #f0f0f0;
+    color: #333;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.pagination-container a.page-link:hover {
+    background-color: #ccc;
+}
+
+.pagination-container a.page-link.active {
+    font-weight: bold;
+    background-color: #333;
+    color: #fff;
+}
+
+/* Files collapse styling */
+.files {
+    margin-top: 10px;
+}
+
+.toggle-btn {
+    margin-top: 10px;
+    padding: 5px 10px;
+    background-color: #007BFF;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* New action buttons styling */
+.action-buttons {
+    margin-top: 10px;
+}
+
+.action-buttons a.edit-btn {
+    display: inline-block;
+    margin-right: 10px;
+    padding: 5px 10px;
+    background-color: #28a745;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 4px;
+}
+
+.action-buttons a.edit-btn:hover {
+    background-color: #218838;
+}
+
+/* Base Button Style */
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    white-space: nowrap;
+    margin-right: 10px;
+}
+
+.btn:hover {
+    transform: scale(1.03);
+}
+
+/* Search Form Button */
+.btn-search {
+    background-color: #007BFF;
+    color: #fff;
+}
+
+.btn-search:hover {
+    background-color: #0056b3;
+}
+
+/* Mass Actions Button */
+.btn-mass {
+    background-color: #17a2b8;
+    color: #fff;
+}
+
+.btn-mass:hover {
+    background-color: #138496;
+}
+
+/* Action Buttons */
+.btn-edit {
+    background-color: #28a745;
+    color: #fff;
+}
+
+.btn-edit:hover {
+    background-color: #218838;
+}
+
+/* Toggle Button (for showing/hiding files) */
+.btn-toggle {
+    background-color: #007BFF;
+    color: #fff;
+}
+
+.btn-toggle:hover {
+    background-color: #0056b3;
+}

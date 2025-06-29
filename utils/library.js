@@ -19,6 +19,7 @@ function getTargetCategoryFolder(type, tmdbInfo) {
         if (lang === 'bn') return 'bengali-movies';
         else if (indianLanguages.has(lang)) return 'desi-movies';
         else return 'movies';
+        // else return 'unrated';
     } else if (type === 'shows') {
         if (lang === 'bn') return 'bengali-shows';
         else if (indianLanguages.has(lang)) return 'desi-shows';
