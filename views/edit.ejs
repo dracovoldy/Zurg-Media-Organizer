@@ -5,168 +5,202 @@
     <meta charset="UTF-8">
     <title>Edit Directory Record</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
+      :root {
+        --primary-bg: #181a20;
+        --secondary-bg: #23262f;
+        --accent: #1f8ef1;
+        --accent-hover: #0d6efd;
+        --text-main: #f5f6fa;
+        --text-secondary: #b2becd;
+        --border: #31344b;
+        --success: #2ecc71;
+        --error: #e74c3c;
+        --card-radius: 14px;
+        --transition: 0.2s cubic-bezier(.4,0,.2,1);
+        --shadow: 0 2px 16px 0 rgba(31, 143, 241, 0.08);
+      }
+      html, body {
+        background: var(--primary-bg);
+        color: var(--text-main);
+        font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+      }
+      .edit-container {
+        background: var(--secondary-bg);
+        border-radius: var(--card-radius);
+        box-shadow: var(--shadow);
+        margin: 2.5rem auto 2rem auto;
+        padding: 2rem 2.5rem 2.5rem 2.5rem;
+        max-width: 600px;
+        border: 1px solid var(--border);
+      }
+      h1, h2 {
+        color: var(--accent);
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+      }
+      label {
+        display: block;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-top: 1.2rem;
+        margin-bottom: 0.3rem;
+      }
+      input[type="text"],
+      input[type="number"],
+      select {
+        width: 100%;
+        background: var(--primary-bg);
+        color: var(--text-main);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        font-size: 1rem;
+        margin-bottom: 0.2rem;
+        transition: border-color var(--transition);
+        outline: none;
+        box-sizing: border-box;
+      }
+      input[type="text"]:focus,
+      input[type="number"]:focus,
+      select:focus {
+        border-color: var(--accent);
+      }
+      .button-group {
+        margin-top: 2rem;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      button,
+      a.button,
+      .action-btn {
+        display: inline-block;
+        min-width: 140px;
+        padding: 0.7rem 1.2rem;
+        font-size: 1rem;
+        font-weight: 500;
+        text-align: center;
+        text-decoration: none;
+        color: #fff;
+        background: var(--accent);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background var(--transition), box-shadow var(--transition);
+        box-shadow: 0 2px 8px 0 rgba(31, 143, 241, 0.10);
+      }
+      button:hover, button:focus,
+      a.button:hover, a.button:focus,
+      .action-btn:hover, .action-btn:focus {
+        background: var(--accent-hover);
+      }
+      .action-btn {
+        background: var(--success);
+      }
+      .action-btn:hover, .action-btn:focus {
+        background: #27ae60;
+      }
+      .edit-container p, .edit-container label {
+        font-size: 1.05rem;
+      }
+      @media (max-width: 700px) {
+        .edit-container {
+          padding: 1rem 0.5rem 1.5rem 0.5rem;
+          max-width: 98vw;
         }
-
-        label {
-            display: block;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-
-        input[type="text"],
-        input[type="number"],
-        select {
-            width: 300px;
-            padding: 5px;
-        }
-
-        .button-group {
-            margin-top: 15px;
-        }
-
-
-        button,
-        a.button,
-        a.mass-btn,
-        a.edit-btn,
-        .action-btn,
-        .toggle-btn {
-            display: inline-block;
-            min-width: 140px;
-            padding: 10px 15px;
-            font-size: 16px;
-            font-weight: 500;
-            text-align: center;
-            text-decoration: none;
-            color: #FFFFFF;
-            background-color: #007BFF;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s ease, box-shadow 0.2s ease;
-        }
-
-        button:hover,
-        a.button:hover,
-        a.mass-btn:hover,
-        a.edit-btn:hover,
-        .action-btn:hover,
-        .toggle-btn:hover {
-            background-color: #0056b3;
-        }
-
-        button:active,
-        a.button:active,
-        a.mass-btn:active,
-        a.edit-btn:active,
-        .action-btn:active,
-        .toggle-btn:active {
-            box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
-        }
-
-        /* ...existing code... */
+      }
+      ::selection {
+        background: var(--accent);
+        color: #fff;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        background: var(--primary-bg);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 8px;
+      }
     </style>
 </head>
 
 <body>
+  <div class="edit-container">
     <h1>Edit Directory Record</h1>
-    <h2>
-        <%= directory.name %>
-    </h2>
-    <p><strong>Path:</strong>
-        <%= directory.path %>
-    </p>
+    <h2><%= directory.name %></h2>
+    <p><strong>Path:</strong> <%= directory.path %></p>
     <form action="/directory/<%= directory.id %>" method="POST">
-        <label for="parsedName">Parsed Name:</label>
-        <input type="text" name="parsedName" id="parsedName" value="<%= directory.parsedName || '' %>">
-
-        <label for="parsedYear">Parsed Year:</label>
-        <input type="number" name="parsedYear" id="parsedYear" value="<%= directory.parsedYear || '' %>">
-
-        <label for="parsedType">Parsed Type:</label>
-        <select name="parsedType" id="parsedType">
-            <option value="" <%=(directory.parsedType===null || directory.parsedType==='' ) ? 'selected' : '' %>>--
-                Select --</option>
-            <option value="movies" <%=directory.parsedType==='movies' ? 'selected' : '' %>>Movies</option>
-            <option value="shows" <%=directory.parsedType==='shows' ? 'selected' : '' %>>Shows</option>
-            <option value="collection" <%=directory.parsedType==='collection' ? 'selected' : '' %>>Collection</option>
-        </select>
-
-        <label for="specialName">Special Name:</label>
-        <input type="text" name="specialName" id="specialName" value="<%= directory.specialName || '' %>">
-
-        <label for="tmdbId">TMDB ID:</label>
-        <input type="number" name="tmdbId" id="tmdbId" value="<%= directory.tmdbId || '' %>">
-
-        <label for="tmdbStatus">TMDB Status:</label>
-        <select name="tmdbStatus" id="tmdbStatus">
-            <option value="" <%=(directory.tmdbStatus===null || directory.tmdbStatus==='' ) ? 'selected' : '' %>>--
-                Select --</option>
-            <option value="MATCH_FOUND" <%=directory.tmdbStatus==='MATCH_FOUND' ? 'selected' : '' %>>MATCH_FOUND
-            </option>
-            <option value="NO_MATCH_FOUND" <%=directory.tmdbStatus==='NO_MATCH_FOUND' ? 'selected' : '' %>
-                >NO_MATCH_FOUND</option>
-            <option value="API_DOWN" <%=directory.tmdbStatus==='API_DOWN' ? 'selected' : '' %>>API_DOWN</option>
-            <option value="NETWORK_ERROR" <%=directory.tmdbStatus==='NETWORK_ERROR' ? 'selected' : '' %>>NETWORK_ERROR
-            </option>
-            <option value="SKIPPED_NO_PARSED_NAME" <%=directory.tmdbStatus==='SKIPPED_NO_PARSED_NAME' ? 'selected' : ''
-                %>>SKIPPED_NO_PARSED_NAME</option>
-        </select>
-
-        <label for="libraryAdded">Library Added:</label>
-        <select name="libraryAdded" id="libraryAdded">
-            <option value="" <%=(directory.libraryAdded===null) ? 'selected' : '' %>>-- Select --</option>
-            <option value="true" <%=directory.libraryAdded===true ? 'selected' : '' %>>Yes</option>
-            <option value="false" <%=directory.libraryAdded===false ? 'selected' : '' %>>No</option>
-        </select>
-
-        <label for="libraryPath">Library Path:</label>
-        <input type="text" name="libraryPath" id="libraryPath" value="<%= directory.libraryPath || '' %>">
-
-        <div class="button-group">
-            <button type="submit">Update Directory</button>
-        </div>
+      <label for="parsedName">Parsed Name:</label>
+      <input type="text" name="parsedName" id="parsedName" value="<%= directory.parsedName || '' %>">
+      <label for="parsedYear">Parsed Year:</label>
+      <input type="number" name="parsedYear" id="parsedYear" value="<%= directory.parsedYear || '' %>">
+      <label for="parsedType">Parsed Type:</label>
+      <select name="parsedType" id="parsedType">
+        <option value="" <%=(directory.parsedType===null || directory.parsedType==='' ) ? 'selected' : '' %>>-- Select --</option>
+        <option value="movies" <%=directory.parsedType==='movies' ? 'selected' : '' %>>Movies</option>
+        <option value="shows" <%=directory.parsedType==='shows' ? 'selected' : '' %>>Shows</option>
+        <option value="collection" <%=directory.parsedType==='collection' ? 'selected' : '' %>>Collection</option>
+      </select>
+      <label for="specialName">Special Name:</label>
+      <input type="text" name="specialName" id="specialName" value="<%= directory.specialName || '' %>">
+      <label for="tmdbId">TMDB ID:</label>
+      <input type="number" name="tmdbId" id="tmdbId" value="<%= directory.tmdbId || '' %>">
+      <label for="tmdbStatus">TMDB Status:</label>
+      <select name="tmdbStatus" id="tmdbStatus">
+        <option value="" <%=(directory.tmdbStatus===null || directory.tmdbStatus==='' ) ? 'selected' : '' %>>-- Select --</option>
+        <option value="MATCH_FOUND" <%=directory.tmdbStatus==='MATCH_FOUND' ? 'selected' : '' %>>MATCH_FOUND</option>
+        <option value="NO_MATCH_FOUND" <%=directory.tmdbStatus==='NO_MATCH_FOUND' ? 'selected' : '' %>>NO_MATCH_FOUND</option>
+        <option value="API_DOWN" <%=directory.tmdbStatus==='API_DOWN' ? 'selected' : '' %>>API_DOWN</option>
+        <option value="NETWORK_ERROR" <%=directory.tmdbStatus==='NETWORK_ERROR' ? 'selected' : '' %>>NETWORK_ERROR</option>
+        <option value="SKIPPED_NO_PARSED_NAME" <%=directory.tmdbStatus==='SKIPPED_NO_PARSED_NAME' ? 'selected' : '' %>>SKIPPED_NO_PARSED_NAME</option>
+      </select>
+      <label for="libraryAdded">Library Added:</label>
+      <select name="libraryAdded" id="libraryAdded">
+        <option value="" <%=(directory.libraryAdded===null) ? 'selected' : '' %>>-- Select --</option>
+        <option value="true" <%=directory.libraryAdded===true ? 'selected' : '' %>>Yes</option>
+        <option value="false" <%=directory.libraryAdded===false ? 'selected' : '' %>>No</option>
+      </select>
+      <label for="libraryPath">Library Path:</label>
+      <input type="text" name="libraryPath" id="libraryPath" value="<%= directory.libraryPath || '' %>">
+      <div class="button-group">
+        <button type="submit">Update Directory</button>
+      </div>
     </form>
-
     <div class="button-group">
-        <!-- Single entry actions; href set to "#" with a data-url attribute -->
-        <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/parse">Parse</a>
-        <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/update-tmdb">Update TMDB</a>
-        <a class="button action-btn" href="#" data-url="/add-to-library/<%= directory.id %>">Add to Library</a>
+      <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/parse">Parse</a>
+      <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/update-tmdb">Update TMDB</a>
+      <a class="button action-btn" href="#" data-url="/add-to-library/<%= directory.id %>">Add to Library</a>
     </div>
-
     <div class="button-group">
-        <a class="button" href="/">Back to List</a>
+      <a class="button" href="/">Back to List</a>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('.action-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const url = btn.getAttribute('data-url');
-                    // Perform an AJAX call; the method can be GET or POST as needed.
-                    fetch(url, { method: 'GET' })
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error('Network response was not ok');
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            console.log('Action response:', data);
-                            // Optionally update the UI based on the response
-                        })
-                        .catch(error => {
-                            console.error('Action error:', error);
-                        });
-                });
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.action-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const url = btn.getAttribute('data-url');
+          fetch(url, { method: 'GET' })
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              console.log('Action response:', data);
+            })
+            .catch(error => {
+              console.error('Action error:', error);
             });
         });
-    </script>
+      });
+    });
+  </script>
 </body>
 
 </html>
