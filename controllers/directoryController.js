@@ -5,11 +5,12 @@ const { searchTmdb, getTmdbDetails } = require('../utils/tmdb');
 
 const PAGE_SIZE = 25;
 
-module.exports = function(prisma) {
+module.exports = function (prisma) {
   // All route handlers use the passed-in prisma instance
 
   async function listDirectories(req, res) {
     try {
+      
       let page = parseInt(req.query.page, 10) || 1;
       if (page < 1) page = 1;
       const limit = PAGE_SIZE;
@@ -79,6 +80,7 @@ module.exports = function(prisma) {
 
   async function parseAllDirectories(req, res) {
     try {
+
       const directories = await prisma.directory.findMany({
         where: { parsedName: null },
         orderBy: { createdAt: 'desc' }
@@ -109,6 +111,7 @@ module.exports = function(prisma) {
 
   async function updateAllTmdb(req, res) {
     try {
+      
       const mode = req.query.mode;
       let directories;
       if (mode === 'full') {
