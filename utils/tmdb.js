@@ -89,7 +89,7 @@ async function getTmdbDetails(tmdbId, mediaType) {
         if (mediaType === 'shows') {
             baseUrl = `https://api.themoviedb.org/3/tv/${tmdbId}`;
         } else {
-            baseUrl = `https://api.themoviedb.org/3/movie/${tmdbId}`;
+            baseUrl = `https://api.themoviedb.org/3/movie/${tmdbId}?append_to_response=keywords`;
         }
         try {
             const response = await fetch(baseUrl, {

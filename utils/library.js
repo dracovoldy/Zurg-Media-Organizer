@@ -18,13 +18,14 @@ function getTargetCategoryFolder(type, tmdbInfo) {
     const lang = tmdbInfo.original_language;
     if (type === 'movies') {
         if (lang === 'bn') return 'bengali-movies';
+        if (lang === 'mr') return 'marathi-movies';
         else if (indianLanguages.has(lang)) return 'desi-movies';
         else return 'movies';
         // else return 'unrated';
     } else if (type === 'shows') {
-        if (lang === 'bn') return 'bengali-shows';
-        else if (indianLanguages.has(lang)) return 'desi-shows';
-        else return 'shows';
+        // Safety: Any Indian language should go to 'desi-shows'; others go to 'shows'
+        if (indianLanguages.has(lang) || lang === 'bn') return 'desi-shows';
+        return 'shows';
     }
     return '';
 }
@@ -65,25 +66,49 @@ function getVersionName(directoryName) {
 
 // Get next available versioned file path for media file symlink
 async function getNextVersionedFilePath(targetDir, baseName, ext, versionName) {
-    let version = 1;
-    let versionIdentifier = versionName ? `[${versionName}]` : `[V${version}]`;
-
-    while (true) {
-        const newFileName = `${baseName} - ${versionIdentifier}${ext}`;
-        const fullPath = path.join(targetDir, newFileName);
-        try {
-            await fs.access(fullPath);
-            version++;
-            versionIdentifier = versionName ? `[${versionName} V${version}]` : `[V${version}]`;
-        } catch (error) {
-            return fullPath;
+    // Check for existing symlink for main file (no version)
+    const mainFileName = `${baseName}${ext}`;
+    const mainFilePath = path.join(targetDir, mainFileName);
+    try {
+        await fs.access(mainFilePath);
+        // Main file exists, return its path
+        return mainFilePath;
+    } catch (error) {
+        // Main file does not exist, proceed to versioning
+    }
+    // Check for any existing versioned symlink
+    const files = await fs.readdir(targetDir);
+    for (const file of files) {
+        if (file.startsWith(baseName) && file.endsWith(ext)) {
+            // A versioned symlink exists, return its path
+            return path.join(targetDir, file);
         }
     }
+    // If no symlink exists, create the first one
+    let version = 1;
+    let versionIdentifier = versionName ? `[${versionName}]` : `[V${version}]`;
+    const newFileName = `${baseName} - ${versionIdentifier}${ext}`;
+    return path.join(targetDir, newFileName);
 }
 
 // Create a symlink from src to dest
 async function createSymlinkForFile(srcFilePath, destFilePath) {
     try {
+        // Check if symlink already exists and points to the same source
+        try {
+            const existing = await fs.lstat(destFilePath);
+            if (existing.isSymbolicLink()) {
+                const target = await fs.readlink(destFilePath);
+                if (target === srcFilePath) {
+                    // Symlink already exists, skip
+                    return;
+                }
+            }
+            // If file exists and is not the correct symlink, skip or handle as needed
+            return;
+        } catch (err) {
+            // File does not exist, proceed to create symlink
+        }
         await fs.symlink(srcFilePath, destFilePath);
     } catch (error) {
         console.error(`Symlink error: ${srcFilePath} -> ${destFilePath}:`, error.message);
@@ -96,6 +121,32 @@ function getSymlinkTargetPath(originalPath) {
     return path.join(process.env.TESTING_SYMLINK_PATH, path.basename(originalPath));
   }
   return originalPath;
+}
+
+// --- Show helpers ---
+// Replace brittle patterns with a robust parser that finds SxxEyy anywhere
+function parseShowFilename(fileName) {
+    const ext = path.extname(fileName).toLowerCase();
+    if (!allowedMediaExtensions.has(ext)) return null;
+    const base = fileName.slice(0, -ext.length);
+
+    // Match ... S01E02 / S01 E02 / S01.E02 ... (spaces/dots/underscores/hyphens allowed around and between)
+    let m = base.match(/(?:^|[\s._\-\)\]])[Ss](\d{1,2})[\s._\-]*[Ee](\d{1,2})(?:[\s._\-\(\[]*)(.*)$/);
+    if (m) {
+        const season = parseInt(m[1], 10);
+        const episode = parseInt(m[2], 10);
+        const leftover = (m[3] || '').replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
+        return { season, episode, leftover, ext };
+    }
+    // Fallback: 1x02 pattern
+    m = base.match(/(?:^|[\s._\-\)\]])(\d{1,2})x(\d{1,2})(?:[\s._\-\(\[]*)(.*)$/i);
+    if (m) {
+        const season = parseInt(m[1], 10);
+        const episode = parseInt(m[2], 10);
+        const leftover = (m[3] || '').replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
+        return { season, episode, leftover, ext };
+    }
+    return null;
 }
 
 /**
@@ -158,8 +209,61 @@ async function processMovieDirectory(directory, tmdbInfo, existingLibraryPath = 
     return targetDir;
 }
 
+/**
+ * Process a show directory:
+ * - Creates base folder "<show title> [tmdbid-<tmdbid>]" in category (language-based)
+ * - For each media file that matches SxxEyy pattern, creates Season NN folder and a symlink:
+ *   "<Show Title> - SxxExx - <leftover>.ext" (leftover optional)
+ */
+async function processShowDirectory(directory, tmdbInfo, existingLibraryPath = null) {
+    if (!tmdbInfo) throw new Error('TMDB details missing');
+
+    const showTitle = (tmdbInfo.name || tmdbInfo.title || directory.parsedName || directory.name).replace(/\//g, ' ');
+    const categoryFolder = getTargetCategoryFolder('shows', tmdbInfo);
+    const baseFolderName = `${showTitle} [tmdbid-${directory.tmdbId}]`;
+
+    const expectedBaseDir = path.join(LIBRARY_BASE_PATH, categoryFolder, baseFolderName);
+
+    let baseDir;
+    // Only reuse existing path if it points inside the expected shows category folder
+    if (existingLibraryPath && existingLibraryPath.startsWith(path.join(LIBRARY_BASE_PATH, categoryFolder))) {
+        baseDir = existingLibraryPath;
+    } else {
+        baseDir = expectedBaseDir;
+        await createDirectoryIfNotExists(baseDir);
+    }
+
+    for (const file of directory.files) {
+        const ext = path.extname(file.name).toLowerCase();
+        if (!allowedMediaExtensions.has(ext)) continue;
+
+        const parsed = parseShowFilename(file.name);
+        if (!parsed) {
+            // Skip files that don't parse as episodes
+            continue;
+        }
+        const seasonPadded = String(parsed.season).padStart(2, '0');
+        const episodePadded = String(parsed.episode).padStart(2, '0');
+        const leftoverClean = (parsed.leftover || '').replace(/\./g, ' ').trim();
+        const seasonFolder = path.join(baseDir, `Season ${seasonPadded}`);
+        await createDirectoryIfNotExists(seasonFolder);
+
+        const linkName = leftoverClean
+            ? `${showTitle} - S${seasonPadded}E${episodePadded} - ${leftoverClean}${parsed.ext}`
+            : `${showTitle} - S${seasonPadded}E${episodePadded}${parsed.ext}`;
+        const destPath = path.join(seasonFolder, linkName);
+
+        const targetPath = getSymlinkTargetPath(destPath);
+        await createSymlinkForFile(file.path, targetPath);
+    }
+
+    return baseDir;
+}
+
 module.exports = {
     getTargetCategoryFolder,
     processMovieDirectory,
-    getSymlinkTargetPath // Export for use in controller
+    processShowDirectory,
+    getSymlinkTargetPath, // Export for use in controller
+    createDirectoryIfNotExists // Export for use in controller
 };

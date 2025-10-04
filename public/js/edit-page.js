@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.action-btn').forEach(btn => {
     btn.addEventListener('click', async function(e) {
       e.preventDefault();
+      // Prevent duplicate triggers
+      if (btn.classList.contains('disabled')) return;
+      btn.classList.add('disabled');
       const url = btn.getAttribute('data-url');
       showDialog('Processing...', 'Please wait...');
       try {
@@ -16,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showDialog('Success', 'Updated successfully');
       } catch (err) {
         showDialog('Error', err.message || 'Failed');
+      } finally {
+        btn.classList.remove('disabled');
       }
     });
   });

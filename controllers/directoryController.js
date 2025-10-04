@@ -1,7 +1,23 @@
 const express = require('express');
+const path = require('path');
 const { parseTitle } = require('../utils/parser');
-const { processMovieDirectory, getSymlinkTargetPath } = require('../utils/library');
+const { processMovieDirectory, getSymlinkTargetPath, createDirectoryIfNotExists, processShowDirectory } = require('../utils/library');
 const { searchTmdb, getTmdbDetails } = require('../utils/tmdb');
+const fsp = require('fs').promises;
+
+// Helpers to handle metadata stored as String (JSON)
+function parseMetadataField(metadata) {
+  if (!metadata) return {};
+  if (typeof metadata === 'string') {
+    try { return JSON.parse(metadata); } catch { return {}; }
+  }
+  if (typeof metadata === 'object') return { ...metadata };
+  return {};
+}
+function serializeMetadata(metadataObj) {
+  if (!metadataObj) return null;
+  try { return JSON.stringify(metadataObj); } catch { return null; }
+}
 
 const PAGE_SIZE = 25;
 
@@ -10,7 +26,7 @@ module.exports = function (prisma) {
 
   async function listDirectories(req, res) {
     try {
-      
+
       let page = parseInt(req.query.page, 10) || 1;
       if (page < 1) page = 1;
       const limit = PAGE_SIZE;
@@ -95,7 +111,7 @@ module.exports = function (prisma) {
             parsedYear: parsedYearConverted,
             parsedType: type,
             specialName: specialName,
-            metadata: metadata || null
+            metadata: { set: serializeMetadata(metadata) }
           },
           include: { files: true }
         });
@@ -111,7 +127,7 @@ module.exports = function (prisma) {
 
   async function updateAllTmdb(req, res) {
     try {
-      
+
       const mode = req.query.mode;
       let directories;
       if (mode === 'full') {
@@ -184,9 +200,10 @@ module.exports = function (prisma) {
       let existingDirectory = null;
       if (!override) {
         existingDirectory = await prisma.directory.findFirst({
-          where: { tmdbId: directory.tmdbId, libraryAdded: true }
+          where: { tmdbId: directory.tmdbId, libraryAdded: true, parsedType: directory.parsedType }
         });
       }
+      const dirMeta = parseMetadataField(directory.metadata);
       let targetLibPath;
       if (directory.parsedType === 'movies') {
         if (!(directory.tmdbStatus === 'MATCH_FOUND' && directory.tmdbId)) {
@@ -195,7 +212,25 @@ module.exports = function (prisma) {
         const mediaType = 'movie';
         const tmdbInfo = await getTmdbDetails(directory.tmdbId, mediaType);
         if (!tmdbInfo) return res.status(400).json({ error: 'Could not fetch TMDB details' });
-        if (existingDirectory) {
+        // If unrated, always use /mnt/library/unrated
+        if (dirMeta && dirMeta.unrated === true) {
+          const unratedFolder = '/mnt/library/unrated';
+          const mediaTitle = (tmdbInfo.title || tmdbInfo.name || directory.name).replace(/\//g, " ");
+          const releaseDate = tmdbInfo.release_date || tmdbInfo.first_air_date || "";
+          const releaseYear = releaseDate ? releaseDate.substring(0, 4) : "Unknown";
+          const newFolderName = `${mediaTitle} (${releaseYear}) [tmdbid-${directory.tmdbId}]`;
+          targetLibPath = path.join(unratedFolder, newFolderName);
+          await createDirectoryIfNotExists(targetLibPath);
+          // Move any existing symlinks to unrated folder
+          if (directory.libraryAdded && directory.libraryPath && directory.libraryPath !== targetLibPath) {
+            try {
+              await fsp.rename(directory.libraryPath, targetLibPath);
+            } catch (e) {
+              // If rename fails, fallback to re-symlink
+            }
+          }
+          await processMovieDirectory(directory, tmdbInfo, targetLibPath);
+        } else if (existingDirectory) {
           targetLibPath = await processMovieDirectory(directory, tmdbInfo, existingDirectory.libraryPath);
         } else {
           targetLibPath = await processMovieDirectory(directory, tmdbInfo);
@@ -205,9 +240,29 @@ module.exports = function (prisma) {
           data: { libraryAdded: true, libraryPath: targetLibPath },
           include: { files: true }
         });
-        return res.status(200).json({ message: 'Added to library', directory: updatedDir });
+        // Fix BigInt serialization for JSON response
+        function replacer(key, value) {
+          return typeof value === 'bigint' ? value.toString() : value;
+        }
+        return res.status(200).json(JSON.parse(JSON.stringify({ message: 'Added to library', directory: updatedDir }, replacer)));
       } else if (directory.parsedType === 'shows') {
-        return res.status(501).json({ error: 'Adding shows to library not implemented yet' });
+        if (!(directory.tmdbStatus === 'MATCH_FOUND' && directory.tmdbId)) {
+          return res.status(400).json({ error: 'TMDB details missing for shows' });
+        }
+        const tmdbInfo = await getTmdbDetails(directory.tmdbId, 'shows');
+        if (!tmdbInfo) return res.status(400).json({ error: 'Could not fetch TMDB details' });
+        if (existingDirectory) {
+          targetLibPath = await processShowDirectory(directory, tmdbInfo, existingDirectory.libraryPath);
+        } else {
+          targetLibPath = await processShowDirectory(directory, tmdbInfo);
+        }
+        const updatedDir = await prisma.directory.update({
+          where: { id: directory.id },
+          data: { libraryAdded: true, libraryPath: targetLibPath },
+          include: { files: true }
+        });
+        function replacer(key, value) { return typeof value === 'bigint' ? value.toString() : value; }
+        return res.status(200).json(JSON.parse(JSON.stringify({ message: 'Added show to library', directory: updatedDir }, replacer)));
       } else if (directory.parsedType === 'collection') {
         return res.status(501).json({ error: 'Adding collections to library not implemented yet' });
       } else {
@@ -227,6 +282,7 @@ module.exports = function (prisma) {
           AND: [
             { tmdbStatus: 'MATCH_FOUND' },
             { tmdbId: { not: null } },
+            { parsedType: 'movies' }, // Safety: bulk add only for movies
             { OR: [{ libraryAdded: false }, override ? {} : {}] }
           ]
         },
@@ -236,8 +292,12 @@ module.exports = function (prisma) {
         let existingDirectory = null;
         if (!override) {
           existingDirectory = await prisma.directory.findFirst({
-            where: { tmdbId: dir.tmdbId, libraryAdded: true }
+            where: { tmdbId: dir.tmdbId, libraryAdded: true, parsedType: dir.parsedType }
           });
+        }
+        const dirMeta = parseMetadataField(dir.metadata);
+        if (dir.parsedType !== 'movies') {
+          return { id: dir.id, error: 'Bulk adding shows is disabled' };
         }
         if (dir.parsedType === 'movies') {
           const tmdbInfo = await getTmdbDetails(dir.tmdbId, 'movie');
@@ -246,10 +306,30 @@ module.exports = function (prisma) {
           }
           try {
             let targetLibPath;
-            if (existingDirectory) {
-              targetLibPath = await processMovieDirectory(dir, tmdbInfo, existingDirectory.libraryPath);
+            // If unrated, always use /mnt/library/unrated
+            if (dirMeta && dirMeta.unrated === true) {
+              const unratedFolder = '/mnt/library/unrated';
+              const mediaTitle = (tmdbInfo.title || tmdbInfo.name || dir.name).replace(/\//g, " ");
+              const releaseDate = tmdbInfo.release_date || tmdbInfo.first_air_date || "";
+              const releaseYear = releaseDate ? releaseDate.substring(0, 4) : "Unknown";
+              const newFolderName = `${mediaTitle} (${releaseYear}) [tmdbid-${dir.tmdbId}]`;
+              targetLibPath = path.join(unratedFolder, newFolderName);
+              await createDirectoryIfNotExists(targetLibPath);
+              // Move any existing symlinks to unrated folder
+              if (dir.libraryAdded && dir.libraryPath && dir.libraryPath !== targetLibPath) {
+                try {
+                  await fsp.rename(dir.libraryPath, targetLibPath);
+                } catch (e) {
+                  // If rename fails, fallback to re-symlink
+                }
+              }
+              await processMovieDirectory(dir, tmdbInfo, targetLibPath);
             } else {
-              targetLibPath = await processMovieDirectory(dir, tmdbInfo);
+              if (existingDirectory) {
+                targetLibPath = await processMovieDirectory(dir, tmdbInfo, existingDirectory.libraryPath);
+              } else {
+                targetLibPath = await processMovieDirectory(dir, tmdbInfo);
+              }
             }
             const updated = await prisma.directory.update({
               where: { id: dir.id },
@@ -260,7 +340,7 @@ module.exports = function (prisma) {
           } catch (error) {
             return { id: dir.id, error: error.message };
           }
-        } else if (dir.parsedType === 'shows' || dir.parsedType === 'collection') {
+        } else if (dir.parsedType === 'collection') {
           return { id: dir.id, error: `Adding type '${dir.parsedType}' not implemented` };
         } else {
           return { id: dir.id, error: 'Unsupported type' };
@@ -325,7 +405,7 @@ module.exports = function (prisma) {
           parsedYear: parsedYearConverted,
           parsedType: type,
           specialName: specialName,
-          metadata: metadata || null
+          metadata: { set: serializeMetadata(metadata) }
         }
       });
       const updated = await prisma.directory.findUnique({ where: { id } });
@@ -390,6 +470,121 @@ module.exports = function (prisma) {
     renderEditPage,
     updateDirectory,
     parseSingleDirectory,
-    updateSingleTmdb
+    updateSingleTmdb,
+    checkExplicitContent: async function (req, res) {
+      try {
+        const directory = await prisma.directory.findUnique({
+          where: { id: req.params.id },
+          include: { files: true }
+        });
+        if (!directory || directory.parsedType !== 'movies' || !directory.tmdbId) {
+          return res.status(400).json({ error: 'Explicit check only allowed for movies with TMDB ID.' });
+        }
+        const tmdbInfo = await getTmdbDetails(directory.tmdbId, 'movie');
+        if (!tmdbInfo) {
+          return res.status(500).json({ error: 'Could not fetch TMDB details.' });
+        }
+
+        // Use TMDB adult flag as the explicit determination
+        const isAdult = Boolean(tmdbInfo.adult);
+        const jsonResult = {
+          sexual_content: null,
+          nudity: null,
+          violence: null,
+          drug_reference: null,
+          adult: isAdult,
+          source: 'tmdb',
+        };
+
+        let newMetadata = parseMetadataField(directory.metadata);
+        newMetadata.unrated_check = jsonResult;
+        newMetadata.unrated = isAdult;
+
+        // Update siblings with same tmdbId (replace metadata blob as we use String field)
+        await prisma.directory.updateMany({
+          where: {
+            tmdbId: directory.tmdbId,
+            parsedType: 'movies',
+            NOT: { id: directory.id }
+          },
+          data: {
+            metadata: { set: serializeMetadata(newMetadata) }
+          }
+        });
+
+        const updated = await prisma.directory.update({
+          where: { id: directory.id },
+          data: { metadata: { set: serializeMetadata(newMetadata) } },
+        });
+        res.json({ ...updated, unrated_check: jsonResult });
+      } catch (error) {
+        console.error('Explicit content check error:', error);
+        res.status(500).json({ error: 'Failed to check explicit content.' });
+      }
+    },
+    markExplicit: async function (req, res) {
+      try {
+        const directory = await prisma.directory.findUnique({ where: { id: req.params.id }, include: { files: true } });
+        if (!directory || directory.parsedType !== 'movies' || !directory.tmdbId) {
+          return res.status(400).json({ error: 'Manual explicit override only allowed for movies with TMDB ID.' });
+        }
+        let meta = parseMetadataField(directory.metadata);
+        meta.unrated = true;
+        meta.unrated_check = { ...(meta.unrated_check || {}), manual_override: true, adult: true };
+
+        // Update siblings with same tmdbId
+        await prisma.directory.updateMany({
+          where: { tmdbId: directory.tmdbId, parsedType: 'movies', NOT: { id: directory.id } },
+          data: { metadata: { set: serializeMetadata(meta) } }
+        });
+        const updated = await prisma.directory.update({ where: { id: directory.id }, data: { metadata: { set: serializeMetadata(meta) } } });
+        return res.json(updated);
+      } catch (error) {
+        console.error('Manual markExplicit error:', error);
+        return res.status(500).json({ error: 'Failed to mark explicit.' });
+      }
+    },
+    clearExplicit: async function (req, res) {
+      try {
+        const directory = await prisma.directory.findUnique({ where: { id: req.params.id }, include: { files: true } });
+        if (!directory || directory.parsedType !== 'movies' || !directory.tmdbId) {
+          return res.status(400).json({ error: 'Manual explicit override only allowed for movies with TMDB ID.' });
+        }
+        let meta = parseMetadataField(directory.metadata);
+        meta.unrated = false;
+        meta.unrated_check = { ...(meta.unrated_check || {}), manual_override: true, adult: false };
+
+        await prisma.directory.updateMany({
+          where: { tmdbId: directory.tmdbId, parsedType: 'movies', NOT: { id: directory.id } },
+          data: { metadata: { set: serializeMetadata(meta) } }
+        });
+        const updated = await prisma.directory.update({ where: { id: directory.id }, data: { metadata: { set: serializeMetadata(meta) } } });
+        return res.json(updated);
+      } catch (error) {
+        console.error('Manual clearExplicit error:', error);
+        return res.status(500).json({ error: 'Failed to clear explicit.' });
+      }
+    },
+    deleteDirectory: async function (req, res) {
+      const id = req.params.id;
+      const { libraryPath } = req.body;
+      try {
+        // Delete symlink if exists
+        if (libraryPath) {
+          const fs = require('fs');
+          if (fs.existsSync(libraryPath) && fs.lstatSync(libraryPath).isSymbolicLink()) {
+            fs.unlinkSync(libraryPath);
+          }
+        }
+        // Delete files first, then directory to avoid FK/unique leftovers
+        await prisma.$transaction([
+          prisma.file.deleteMany({ where: { directoryId: id } }),
+          prisma.directory.delete({ where: { id } })
+        ]);
+        res.json({ message: 'Directory and files deleted.' });
+      } catch (err) {
+        res.status(500).json({ message: 'Delete failed', error: err.message });
+      }
+    },
   };
 };

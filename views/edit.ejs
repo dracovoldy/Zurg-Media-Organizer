@@ -35,6 +35,9 @@
           </script>
         <% } %>
       </div>
+      <% if (directory.metadata && directory.metadata.unrated === true) { %>
+        <span class="badge badge-unrated" style="background:#e74c3c;color:#fff;padding:0.3em 0.7em;border-radius:6px;margin-left:0.7em;font-size:0.95em;vertical-align:middle;">Unrated</span>
+      <% } %>
     </div>
     <form id="edit-directory-form" action="/directory/<%= directory.id %>/edit" method="POST" style="margin-bottom:2.5rem;">
       <h2 style="margin-top:0.5rem;margin-bottom:1.2rem;font-size:1.3rem;color:var(--accent);"><i class="fa-solid fa-pen-to-square"></i> Edit Details</h2>
@@ -97,8 +100,22 @@
       <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/parse"><i class="fa-solid fa-wand-magic-sparkles"></i> Parse</a>
       <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/update-tmdb"><i class="fa-brands fa-imdb"></i> Update TMDB</a>
       <a class="button action-btn" href="#" data-url="/add-to-library/<%= directory.id %>"><i class="fa-solid fa-link"></i> Add to Library</a>
+      <% if (directory.parsedType === 'movies') { %>
+        <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/check-explicit"><i class="fa-solid fa-eye-slash"></i> Check Explicit</a>
+        <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/mark-explicit" style="background:#e67e22;color:#fff;"><i class="fa-solid fa-triangle-exclamation"></i> Mark Explicit</a>
+        <a class="button action-btn" href="#" data-url="/directory/<%= directory.id %>/clear-explicit" style="background:#27ae60;color:#fff;"><i class="fa-solid fa-eraser"></i> Clear Explicit</a>
+      <% } %>
       <a class="button" href="/" style="background:var(--border);color:var(--text-main);"><i class="fa-solid fa-arrow-left"></i> Back to List</a>
     </div>
+    <div class="action-buttons">
+        <button class="btn btn-save" id="saveBtn">Save</button>
+        <% if (directory.parsedType === 'movies') { %>
+          <button class="btn btn-explicit" id="explicitBtn"><i class="fa-solid fa-eye-slash"></i> Check Explicit</button>
+        <% } %>
+        <button class="btn btn-delete" onclick="deleteDirectory('<%= directory.id %>', '<%= directory.libraryPath %>')" style="background:#e74c3c;color:#fff;padding:0.5em 0.6em;min-width:0;width:auto;" title="Delete Directory">
+          <i class="fa-solid fa-trash" style="font-size:1.1em;"></i>
+        </button>
+      </div>
   </div>
   <!-- Modal dialog for API responses -->
   <div id="api-dialog" class="modal" style="display:none;">
@@ -122,11 +139,15 @@
       if (document.querySelector('[data-field="tmdbStatus"]')) {
         document.querySelector('[data-field="tmdbStatus"]').textContent = data.tmdbStatus || 'N/A';
       }
-      if (data.metadata) {
-        document.getElementById('metadata-json').textContent = JSON.stringify(data.metadata, null, 2);
-        document.getElementById('metadata-json').parentElement.style.display = '';
-      } else {
-        document.getElementById('metadata-json').parentElement.style.display = 'none';
+      // Fix: Only update metadata if the element exists
+      const metadataEl = document.getElementById('metadata-json');
+      if (metadataEl) {
+        if (data.metadata) {
+          metadataEl.textContent = JSON.stringify(data.metadata, null, 2);
+          metadataEl.parentElement.style.display = '';
+        } else {
+          metadataEl.parentElement.style.display = 'none';
+        }
       }
     }
 
@@ -134,6 +155,9 @@
     document.querySelectorAll('.action-btn').forEach(btn => {
       btn.addEventListener('click', async function(e) {
         e.preventDefault();
+        // Prevent duplicate triggers
+        if (btn.classList.contains('disabled')) return;
+        btn.classList.add('disabled');
         const url = btn.getAttribute('data-url');
         showDialog('Processing...', 'Please wait...');
         try {
@@ -141,9 +165,20 @@
           if (!resp.ok) throw new Error('Request failed');
           const data = await resp.json();
           updateSummaryCard(data);
-          showDialog('Success', 'Updated successfully');
+          if (url.includes('check-explicit')) {
+            const details = data.unrated_check ? JSON.stringify(data.unrated_check, null, 2) : 'No details';
+            showDialog('Explicit Content Check', details);
+          } else if (url.includes('mark-explicit')) {
+            showDialog('Manual Override', 'Marked as Explicit');
+          } else if (url.includes('clear-explicit')) {
+            showDialog('Manual Override', 'Cleared Explicit flag');
+          } else {
+            showDialog('Success', 'Updated successfully');
+          }
         } catch (err) {
           showDialog('Error', err.message || 'Failed');
+        } finally {
+          btn.classList.remove('disabled');
         }
       });
     });
@@ -179,6 +214,23 @@
     }
     function closeDialog() {
       document.getElementById('api-dialog').style.display = 'none';
+    }
+
+    function deleteDirectory(id, libraryPath) {
+      if (!confirm('Are you sure you want to delete this directory and its symlinks?')) return;
+      fetch(`/directory/${id}/delete`, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ libraryPath })
+      })
+      .then(resp => resp.json())
+      .then(data => {
+        alert(data.message || 'Deleted');
+        window.location.href = '/';
+      })
+      .catch(err => {
+        alert('Delete failed: ' + (err.message || 'Unknown error'));
+      });
     }
   </script>
 </body>

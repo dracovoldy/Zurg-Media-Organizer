@@ -21,7 +21,9 @@ model Directory {
   libraryAdded Boolean  @default(false) // Indicates if added to library
   libraryPath  String? // Path to the library folder
   createdAt    DateTime @default(now())
-  metadata     Json?    // Arbitrary JSON metadata (e.g., F1 info, etc.)
+  // Stored as a stringified JSON blob for SQLite compatibility in this workspace.
+  // If you have a database that supports Json (Postgres/MySQL), you can revert this to `Json?`.
+  metadata     String?  // Arbitrary JSON metadata (stringified)
   files        File[]
 }
 

@@ -40,25 +40,23 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-async function syncDirectory(dirPath) {
-    // Prevent syncing if the directory already exists in the DB.
-    const existingDir = await prisma.directory.findUnique({
-        where: { path: dirPath }
-    });
-    if (existingDir) {
-        console.log(`Directory ${dirPath} already exists in DB; skipping sync.`);
-        return;
-    }
+function normalizeDirPath(p) {
+  if (!p) return p;
+  // Remove trailing slashes to keep a canonical unique key value
+  return p.length > 1 ? p.replace(/\/+$/, '') : p;
+}
 
-    const dirName = path.basename(dirPath);
+async function syncDirectory(dirPath) {
+    const normalizedPath = normalizeDirPath(dirPath);
+    const dirName = path.basename(normalizedPath);
     const filesData = [];
 
     try {
         // Read contents, expecting files within the directory.
-        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        const entries = await fs.readdir(normalizedPath, { withFileTypes: true });
         for (const entry of entries) {
             if (entry.isFile()) {
-                const filePath = path.join(dirPath, entry.name);
+                const filePath = path.join(normalizedPath, entry.name);
                 const stats = await fs.stat(filePath);
                 filesData.push({
                     name: entry.name,
@@ -68,21 +66,34 @@ async function syncDirectory(dirPath) {
             }
         }
     } catch (error) {
-        console.error(`Error reading contents of ${dirPath}:`, error);
+        console.error(`Error reading contents of ${normalizedPath}:`, error);
         throw error;
     }
 
-    // Insert the directory and its files into the database.
-    await prisma.directory.create({
-        data: {
-            name: dirName,
-            path: dirPath,
-            files: {
-                create: filesData
-            }
+    // Idempotent write:
+    // - Clean up any orphan File rows that would conflict on unique path
+    // - Upsert Directory by unique path
+    // - In update branch, replace files via deleteMany + create
+    await prisma.$transaction([
+      prisma.file.deleteMany({ where: { path: { in: filesData.map(f => f.path) } } }),
+      prisma.directory.upsert({
+        where: { path: normalizedPath },
+        update: {
+          name: dirName,
+          files: {
+            deleteMany: {},
+            create: filesData
+          }
+        },
+        create: {
+          name: dirName,
+          path: normalizedPath,
+          files: { create: filesData }
         }
-    });
-    console.log(`Synchronized directory ${dirPath} with ${filesData.length} file(s).`);
+      })
+    ]);
+
+    console.log(`Synchronized directory ${normalizedPath} with ${filesData.length} file(s).`);
 }
 
 const watcher = chokidar.watch(watchedDirectory, {
@@ -99,11 +110,12 @@ watcher.on('addDir', async (dirPath) => {
     // Ignore the root watched directory itself.
     if (dirPath === watchedDirectory) return;
 
-    console.log(`New directory detected: ${dirPath}`);
+    const normalized = normalizeDirPath(dirPath);
+    console.log(`New directory detected: ${normalized}`);
     try {
-        await syncDirectory(dirPath);
+        await syncDirectory(normalized);
     } catch (error) {
-        console.error(`Failed to sync directory ${dirPath}:`, error);
+        console.error(`Failed to sync directory ${normalized}:`, error);
     }
 });
 

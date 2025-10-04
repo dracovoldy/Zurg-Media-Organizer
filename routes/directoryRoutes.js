@@ -35,5 +35,15 @@ module.exports = function(prisma) {
   // Update TMDB information for a single directory
   router.post('/directory/:id/update-tmdb', controller.updateSingleTmdb);
 
+  // Explicit content check for movies
+  router.post('/directory/:id/check-explicit', controller.checkExplicitContent);
+
+  // Manual explicit override routes
+  router.post('/directory/:id/mark-explicit', controller.markExplicit);
+  router.post('/directory/:id/clear-explicit', controller.clearExplicit);
+
+  // Delete a directory and its symlink
+  router.post('/directory/:id/delete', controller.deleteDirectory);
+
   return router;
 };
