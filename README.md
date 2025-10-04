@@ -31,6 +31,33 @@ npx prisma migrate dev --name init
 
 ```
 npx prisma migrate dev --name add-metadata-to-directory
+
+## Resetting the database (wipe & start fresh)
+
+If you need to delete all application data and recreate the database schema from migrations, follow these safe steps.
+
+1) Create backups of the SQLite files (keeps a timestamped copy in `prisma/`):
+
+```bash
+timestamp=$(date +%Y%m%d%H%M%S)
+cp prisma/dev.db prisma/dev.$timestamp.db.bak
+cp prisma/test.db prisma/test.$timestamp.db.bak
+ls -l prisma
+```
+
+2) Reset the database and reapply migrations (non-interactive):
+
+```bash
+npx prisma generate
+npx prisma migrate reset --force --skip-seed
+npx prisma migrate status
+```
+
+Notes:
+- `migrate reset` will drop all data and reapply your migrations. Use `--skip-seed` if you don't want any seed step to run automatically.
+- If you don't have a seed script, there's no data population step after the reset. You can write a small `prisma/seed.js` or a script in `package.json` to re-populate default data.
+- For production or non-SQLite databases (Postgres/MySQL) prefer safer migration workflows and backups specific to the DB engine.
+
 ```
 
 # Changelog

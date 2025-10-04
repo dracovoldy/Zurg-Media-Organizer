@@ -5,7 +5,14 @@
   "scripts": {
     "start": "pm2 start index.js --name Zurg-Organizer",
     "dev": "nodemon ./index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+  "db:backup": "bash ./scripts/db-backup.sh",
+  "db:generate": "npx prisma generate",
+  "db:reset": "npx prisma migrate reset --force --skip-seed",
+  "db:reset:seed": "npx prisma migrate reset --force && npm run seed",
+  "db:reset:backup": "npm run db:backup && npm run db:reset",
+  "db:reset:backup:seed": "npm run db:backup && npm run db:reset:seed",
+  "seed": "node prisma/seed.js || true"
   },
   "keywords": [],
   "author": "",
