@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Edit Directory Record</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/css/edit-styles.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
 </head>
@@ -90,6 +91,17 @@
         <div>
           <label for="libraryPath">Library Path</label>
           <input type="text" name="libraryPath" id="libraryPath" value="<%= directory.libraryPath || '' %>">
+        </div>
+        <div>
+          <label for="libraryId">Library</label>
+          <select name="libraryId" id="libraryId">
+            <option value="">-- None --</option>
+            <% if (libraries && libraries.length) { %>
+              <% libraries.forEach(function(lib) { %>
+                <option value="<%= lib.id %>" <%= directory.libraryId===lib.id ? 'selected' : '' %>><%= lib.name %> (<%= lib.rootPath %>)</option>
+              <% }) %>
+            <% } %>
+          </select>
         </div>
       </div>
       <div class="button-group" style="margin-top:2.5rem;justify-content:flex-end;">

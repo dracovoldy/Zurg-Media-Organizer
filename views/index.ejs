@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Media-Symlink Organizer</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.ico">
   <link rel="stylesheet" href="/css/index-styles.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -16,6 +17,16 @@
     <button class="accordion-toggle" type="button" aria-expanded="false" aria-controls="filter-panel" id="filter-toggle">Show Filters</button>
     <div id="filter-panel" class="accordion-panel" style="display:none;">
       <form class="search-form" method="GET" action="/">
+        <!-- Library selector -->
+        <label for="libraryId">Library:</label>
+        <select name="libraryId" id="libraryId">
+          <option value="">All Libraries</option>
+          <% if (libraries && libraries.length) { %>
+            <% libraries.forEach(function(lib) { %>
+              <option value="<%= lib.id %>" <%= query.libraryId===lib.id ? 'selected' : '' %>><%= lib.name %> (<%= lib.rootPath %>) <%= lib.isDefault ? ' [default]' : '' %></option>
+            <% }) %>
+          <% } %>
+        </select>
         <input type="text" name="name" placeholder="Directory Name" value="<%= query.name || '' %>" />
         <input type="text" name="parsedName" placeholder="Parsed Name" value="<%= query.parsedName || '' %>" />
         <input type="number" name="year" placeholder="Year" value="<%= query.year || '' %>" />
@@ -46,6 +57,19 @@
         <button type="submit" class="btn btn-search">Search</button>
       </form>
     </div>
+  </div>
+
+  <!-- Create library form -->
+  <div style="margin:1em 0;">
+    <div style="float:right;margin-top:-2.2em;">
+      <a href="/libraries-admin" class="btn">Libraries Admin</a>
+    </div>
+    <form id="create-library-form" onsubmit="event.preventDefault(); createLibrary();">
+      <input type="text" id="newLibName" placeholder="Library name (e.g., Movies)" />
+      <input type="text" id="newLibRoot" placeholder="Root path (e.g., /mnt/library)" />
+      <label><input type="checkbox" id="newLibDefault" /> Default</label>
+      <button class="btn" type="submit">Create Library</button>
+    </form>
   </div>
 
   <!-- Mass Actions -->

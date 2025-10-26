@@ -37,58 +37,80 @@ async function createDirectoryIfNotExists(dirPath) {
 
 // Function to determine version name based on directory name
 function getVersionName(directoryName) {
-    if (directoryName.toLowerCase().includes('yts') && directoryName.toLowerCase().includes('2160p')) {
-        return 'YTS 4K';
-    } else if (directoryName.toLowerCase().includes('yts') && directoryName.toLowerCase().includes('720p')) {
-        return 'YTS 720p';
-    } else if (directoryName.toLowerCase().includes('yts') && directoryName.toLowerCase().includes('1080p')) {
-        return 'YTS 1080p';
-    } else if (directoryName.toLowerCase().includes('4k')) {
-        return '4K';
-    } else if (directoryName.toLowerCase().includes('720p')) {
-        return '720p';
-    } else if (directoryName.toLowerCase().includes('2160p')) {
-        return '4K';
-    } else if (directoryName.toLowerCase().includes('1080p')) {
-        return '1080p';
-    } else if (directoryName.toLowerCase().includes('1080p') && directoryName.toLowerCase().includes('10bit')) {
-        return '1080p HDR10';
-    } else if (directoryName.toLowerCase().includes('1080p') && directoryName.toLowerCase().includes('hindi')) {
-        return '1080p Hindi';
-    } else if (directoryName.toLowerCase().includes('2160p') && directoryName.toLowerCase().includes('hindi')) {
-        return '4K Hindi';
-    } else if (directoryName.toLowerCase().includes('4k') && directoryName.toLowerCase().includes('hindi')) {
-        return '4K Hindi';
-    } else {
-        return null;
-    }
+    const dn = directoryName.toLowerCase();
+    // More specific checks first (e.g. 1080p + 10bit/hindi) before generic ones
+    if (dn.includes('yts') && dn.includes('2160p')) return 'YTS 4K';
+    if (dn.includes('yts') && dn.includes('720p')) return 'YTS 720p';
+    if (dn.includes('yts') && dn.includes('1080p')) return 'YTS 1080p';
+
+    // Specific combos
+    if (dn.includes('1080p') && dn.includes('10bit')) return '1080p HDR10';
+    if (dn.includes('1080p') && dn.includes('hindi')) return '1080p Hindi';
+    if ((dn.includes('2160p') || dn.includes('4k')) && dn.includes('hindi')) return '4K Hindi';
+
+    // Generic resolution checks
+    if (dn.includes('2160p') || dn.includes('4k')) return '4K';
+    if (dn.includes('1080p')) return '1080p';
+    if (dn.includes('720p')) return '720p';
+
+    return null;
 }
 
 // Get next available versioned file path for media file symlink
 async function getNextVersionedFilePath(targetDir, baseName, ext, versionName) {
-    // Check for existing symlink for main file (no version)
+    // Ensure target directory exists before scanning
+    await createDirectoryIfNotExists(targetDir);
+
     const mainFileName = `${baseName}${ext}`;
     const mainFilePath = path.join(targetDir, mainFileName);
-    try {
-        await fs.access(mainFilePath);
-        // Main file exists, return its path
-        return mainFilePath;
-    } catch (error) {
-        // Main file does not exist, proceed to versioning
-    }
-    // Check for any existing versioned symlink
+
+    // Read existing files that start with baseName and end with the extension
     const files = await fs.readdir(targetDir);
-    for (const file of files) {
-        if (file.startsWith(baseName) && file.endsWith(ext)) {
-            // A versioned symlink exists, return its path
-            return path.join(targetDir, file);
+    const matches = files.filter(f => f.startsWith(baseName) && f.toLowerCase().endsWith(ext.toLowerCase()));
+
+    // If there are no files that match baseName, create the main file (no version)
+    if (matches.length === 0) {
+        return mainFilePath;
+    }
+
+    // Helper to check existence in matches
+    const existsInMatches = (name) => matches.includes(name);
+
+    // If a version name is provided, prefer a resolution-based label
+    if (versionName) {
+        // Candidate like: Base - [1080p].ext
+        let candidate = `${baseName} - [${versionName}]${ext}`;
+        if (!existsInMatches(candidate)) return path.join(targetDir, candidate);
+
+        // If exact resolution candidate exists, try numeric suffixes: [1080p 2], [1080p 3], ...
+        let idx = 2;
+        while (true) {
+            const tryName = `${baseName} - [${versionName} ${idx}]${ext}`;
+            if (!existsInMatches(tryName)) return path.join(targetDir, tryName);
+            idx += 1;
+            // safety cap
+            if (idx > 1000) break;
         }
     }
-    // If no symlink exists, create the first one
-    let version = 1;
-    let versionIdentifier = versionName ? `[${versionName}]` : `[V${version}]`;
-    const newFileName = `${baseName} - ${versionIdentifier}${ext}`;
+
+    // Fallback to V# style versioning
+    const vRegex = new RegExp(`^${escapeRegex(baseName)} - \[V(\\d+)\]${escapeRegex(ext)}$`, 'i');
+    let maxV = 0;
+    for (const f of matches) {
+        const m = f.match(vRegex);
+        if (m && m[1]) {
+            const n = parseInt(m[1], 10);
+            if (!isNaN(n) && n > maxV) maxV = n;
+        }
+    }
+    const nextV = maxV + 1 || 1;
+    const newFileName = `${baseName} - [V${nextV}]${ext}`;
     return path.join(targetDir, newFileName);
+}
+
+// Simple regex escape helper
+function escapeRegex(s) {
+    return s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
 // Create a symlink from src to dest
@@ -155,7 +177,7 @@ function parseShowFilename(fileName) {
  * - Symlinks all files from the original directory into the new folder.
  *   * Media files are renamed with a version suffix.
  */
-async function processMovieDirectory(directory, tmdbInfo, existingLibraryPath = null) {
+async function processMovieDirectory(directory, tmdbInfo, existingLibraryPath = null, baseLibraryRoot = null) {
     if (!tmdbInfo) throw new Error("TMDB details missing");
 
     // HOTFIX: fix non unix compatible file names
@@ -166,12 +188,19 @@ async function processMovieDirectory(directory, tmdbInfo, existingLibraryPath = 
     const newFolderName = `${mediaTitle} (${releaseYear}) [tmdbid-${directory.tmdbId}]`;
 
     let targetDir;
-    if (existingLibraryPath) {
+    const root = baseLibraryRoot || LIBRARY_BASE_PATH;
+    const expectedCategoryDir = path.join(root, categoryFolder);
+    // If existingLibraryPath points to the category root (e.g. '/mnt/library/movies')
+    // then ignore it and create a per-movie folder instead. This avoids symlinking
+    // all files directly into the category folder when older DB rows only stored
+    // the category path.
+    if (existingLibraryPath && existingLibraryPath !== expectedCategoryDir) {
         targetDir = existingLibraryPath;
     } else {
-        targetDir = path.join(LIBRARY_BASE_PATH, categoryFolder, newFolderName);
-        await createDirectoryIfNotExists(targetDir);
+        targetDir = path.join(root, categoryFolder, newFolderName);
     }
+    // Ensure directory exists whether provided or newly constructed
+    await createDirectoryIfNotExists(targetDir);
 
     // Filter out media files among all files based on allowed extensions.
     const mediaFiles = directory.files.filter(file => allowedMediaExtensions.has(path.extname(file.name).toLowerCase()));
@@ -215,23 +244,26 @@ async function processMovieDirectory(directory, tmdbInfo, existingLibraryPath = 
  * - For each media file that matches SxxEyy pattern, creates Season NN folder and a symlink:
  *   "<Show Title> - SxxExx - <leftover>.ext" (leftover optional)
  */
-async function processShowDirectory(directory, tmdbInfo, existingLibraryPath = null) {
+async function processShowDirectory(directory, tmdbInfo, existingLibraryPath = null, baseLibraryRoot = null) {
     if (!tmdbInfo) throw new Error('TMDB details missing');
 
     const showTitle = (tmdbInfo.name || tmdbInfo.title || directory.parsedName || directory.name).replace(/\//g, ' ');
     const categoryFolder = getTargetCategoryFolder('shows', tmdbInfo);
     const baseFolderName = `${showTitle} [tmdbid-${directory.tmdbId}]`;
 
-    const expectedBaseDir = path.join(LIBRARY_BASE_PATH, categoryFolder, baseFolderName);
+    const root = baseLibraryRoot || LIBRARY_BASE_PATH;
+    const expectedBaseDir = path.join(root, categoryFolder, baseFolderName);
+    const expectedCategoryDir = path.join(root, categoryFolder);
 
     let baseDir;
-    // Only reuse existing path if it points inside the expected shows category folder
-    if (existingLibraryPath && existingLibraryPath.startsWith(path.join(LIBRARY_BASE_PATH, categoryFolder))) {
+    // Only reuse existing path if it points to a specific show folder (not the category root)
+    if (existingLibraryPath && existingLibraryPath !== expectedCategoryDir && existingLibraryPath.startsWith(path.join(root, categoryFolder))) {
         baseDir = existingLibraryPath;
     } else {
         baseDir = expectedBaseDir;
-        await createDirectoryIfNotExists(baseDir);
     }
+    // Ensure baseDir exists
+    await createDirectoryIfNotExists(baseDir);
 
     for (const file of directory.files) {
         const ext = path.extname(file.name).toLowerCase();
@@ -266,4 +298,54 @@ module.exports = {
     processShowDirectory,
     getSymlinkTargetPath, // Export for use in controller
     createDirectoryIfNotExists // Export for use in controller
+};
+
+// Export helpers for testing and external use
+module.exports.getVersionName = getVersionName;
+module.exports.getNextVersionedFilePath = getNextVersionedFilePath;
+
+// Additional helpers for multi-library support
+module.exports.getLibraries = async function(prisma) {
+    // Return libraries ordered with default first
+    if (!prisma || !prisma.library) return [];
+    return prisma.library.findMany({ orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
+};
+
+module.exports.resolveLibraryRoot = function(library) {
+    // Accept either a library object { rootPath } or a raw path
+    if (!library) return LIBRARY_BASE_PATH;
+    if (typeof library === 'string') return library;
+    if (library.rootPath) return library.rootPath;
+    return LIBRARY_BASE_PATH;
+};
+
+// Ensure standard subfolders exist under a library root
+module.exports.ensureLibraryStructure = async function(libraryRoot) {
+    if (!libraryRoot) throw new Error('libraryRoot required');
+    const movieDir = path.join(libraryRoot, 'movies');
+    const showDir = path.join(libraryRoot, 'shows');
+    const unratedDir = path.join(libraryRoot, 'unrated');
+    await createDirectoryIfNotExists(movieDir);
+    await createDirectoryIfNotExists(showDir);
+    await createDirectoryIfNotExists(unratedDir);
+    return { movies: movieDir, shows: showDir, unrated: unratedDir };
+};
+
+// Validate a library root path: exists and writable
+module.exports.validateLibraryPath = async function(p) {
+    try {
+        // check existence
+        await fs.access(p);
+    } catch (e) {
+        return { ok: false, reason: 'PATH_NOT_FOUND' };
+    }
+    try {
+        // check write access by attempting to write a temp file
+        const tmpPath = path.join(p, `.zurg_test_${Date.now()}`);
+        await fs.writeFile(tmpPath, 'ok');
+        await fs.unlink(tmpPath);
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, reason: 'NOT_WRITABLE' };
+    }
 };

@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Libraries Admin</title>
+  <link rel="stylesheet" href="/css/index-styles.css">
+</head>
+<body>
+  <h1>Libraries Admin</h1>
+  <section>
+    <h2>Create Library</h2>
+    <form id="create-lib-form">
+      <label>Name: <input type="text" name="name" id="lib-name"></label>
+      <label>Root Path: <input type="text" name="rootPath" id="lib-root"></label>
+      <label>Default: <input type="checkbox" name="isDefault" id="lib-default"></label>
+      <button type="submit">Create</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Existing Libraries</h2>
+    <table border="1">
+      <thead><tr><th>Name</th><th>Root Path</th><th>Default</th><th>Actions</th></tr></thead>
+      <tbody>
+        <% libraries.forEach(function(lib) { %>
+          <tr data-id="<%= lib.id %>">
+            <td class="name"><%= lib.name %></td>
+            <td class="root"><%= lib.rootPath %></td>
+            <td class="isDefault"><%= lib.isDefault ? 'Yes' : 'No' %></td>
+            <td>
+              <button class="edit">Edit</button>
+              <button class="delete">Delete</button>
+              <!-- Quick set default button -->
+              <% if (!lib.isDefault) { %>
+                <button class="set-default">Set Default</button>
+              <% } else { %>
+                <span style="font-weight:bold;color:green">DEFAULT</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Move / Migrate</h2>
+    <form id="move-form">
+      <label>From Root: <input type="text" id="from-root"></label>
+      <label>To Root: <input type="text" id="to-root"></label>
+      <button type="submit">Move</button>
+    </form>
+  </section>
+
+  <script>
+    async function postJSON(url, body) {
+      const res = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      return res.json();
+    }
+
+    document.getElementById('create-lib-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const name = document.getElementById('lib-name').value;
+      const rootPath = document.getElementById('lib-root').value;
+      const isDefault = document.getElementById('lib-default').checked;
+      const res = await postJSON('/libraries', { name, rootPath, isDefault });
+      if (res.id) location.reload(); else alert('Failed: ' + JSON.stringify(res));
+    });
+
+    document.querySelectorAll('button.delete').forEach(btn => btn.addEventListener('click', async function(e) {
+      const tr = e.target.closest('tr');
+      const id = tr.dataset.id;
+      if (!confirm('Delete?')) return;
+      const r = await fetch('/libraries/' + id, { method: 'DELETE' });
+      const j = await r.json();
+      if (j.ok) location.reload(); else alert('Failed to delete');
+    }));
+
+    document.querySelectorAll('button.edit').forEach(btn => btn.addEventListener('click', async function(e) {
+      const tr = e.target.closest('tr');
+      const id = tr.dataset.id;
+      const name = tr.querySelector('.name').textContent;
+      const root = tr.querySelector('.root').textContent;
+      const isDefault = tr.querySelector('.isDefault').textContent === 'Yes';
+      const newName = prompt('Name', name);
+      if (newName == null) return;
+      const newRoot = prompt('Root Path', root);
+      if (newRoot == null) return;
+      const newDefault = confirm('Make default?');
+      const res = await postJSON('/libraries/' + id, { name: newName, rootPath: newRoot, isDefault: newDefault });
+      if (res.id) location.reload(); else alert('Failed: ' + JSON.stringify(res));
+    }));
+
+    // Quick set default button handler
+    document.querySelectorAll('button.set-default').forEach(btn => btn.addEventListener('click', async function(e) {
+      const tr = e.target.closest('tr');
+      const id = tr.dataset.id;
+      const name = tr.querySelector('.name').textContent;
+      const root = tr.querySelector('.root').textContent;
+      if (!confirm(`Set library "${name}" as default?`)) return;
+      const res = await postJSON('/libraries/' + id, { name: name, rootPath: root, isDefault: true });
+      if (res.id) location.reload(); else alert('Failed: ' + JSON.stringify(res));
+    }));
+
+    document.getElementById('move-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const fromRoot = document.getElementById('from-root').value;
+      const toRoot = document.getElementById('to-root').value;
+      const res = await postJSON('/libraries/move', { fromRoot, toRoot });
+      if (res.ok) alert('Move started'); else alert('Failed: ' + JSON.stringify(res));
+    });
+  </script>
+</body>
+</html>

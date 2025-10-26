@@ -12,6 +12,8 @@ model Directory {
   id           String   @id @default(uuid()) // Generates a UUID for each new Directory record
   name         String
   path         String   @unique
+  libraryId    String? // Optional relation to Library when a directory is associated with a library
+  library      Library? @relation(fields: [libraryId], references: [id])
   parsedName   String? // Additional property: parsed directory name
   parsedYear   Int? // Additional property: parsed directory year
   parsedType   String? // Additional property: type extracted from directory name
@@ -23,8 +25,17 @@ model Directory {
   createdAt    DateTime @default(now())
   // Stored as a stringified JSON blob for SQLite compatibility in this workspace.
   // If you have a database that supports Json (Postgres/MySQL), you can revert this to `Json?`.
-  metadata     String?  // Arbitrary JSON metadata (stringified)
+  metadata     String? // Arbitrary JSON metadata (stringified)
   files        File[]
+}
+
+model Library {
+  id          String      @id @default(uuid())
+  name        String
+  rootPath    String      @unique
+  isDefault   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  directories Directory[]
 }
 
 model File {

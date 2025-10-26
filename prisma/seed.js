@@ -3,10 +3,17 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding minimal data...');
+  // Create a default library if not exists
+  const defaultLib = await prisma.library.upsert({
+    where: { rootPath: '/mnt/library' },
+    update: {},
+    create: { name: 'Default Library', rootPath: '/mnt/library', isDefault: true }
+  });
   const dir = await prisma.directory.create({
     data: {
       name: 'Sample Directory',
       path: '/sample/path',
+      libraryId: defaultLib.id,
       parsedName: 'Sample Directory',
       parsedYear: 2025,
       parsedType: 'movie',

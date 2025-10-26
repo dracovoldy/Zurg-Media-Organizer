@@ -64,8 +64,18 @@ module.exports = function (prisma) {
       } else {
         orderBy.createdAt = 'desc';
       }
+      // If library filtering requested, only show directories associated with that library or all if not provided
+      let whereClause = filters;
+      if (req.query.libraryId && req.query.libraryId.trim() !== '') {
+        const libId = req.query.libraryId;
+        // Show directories that belong to the selected library OR are not yet added to any library
+        whereClause = {
+          AND: [filters, { OR: [{ libraryId: libId }, { libraryAdded: false }] }]
+        };
+      }
+
       const directories = await prisma.directory.findMany({
-        where: filters,
+        where: whereClause,
         include: { files: true },
         orderBy,
         skip,
@@ -81,12 +91,17 @@ module.exports = function (prisma) {
         }
         return { ...dir, tmdbInfo: null };
       }));
+      // Fetch libraries to populate selector on UI
+      let libraries = [];
+      try { libraries = await require('../utils/library').getLibraries(prisma); } catch (e) { libraries = []; }
+
       res.render("index", {
         enrichedDirectories,
         page,
         totalPages,
         query: req.query,
-        validSortFields
+        validSortFields,
+        libraries
       });
     } catch (error) {
       console.error("Error fetching directories from DB:", error);
@@ -191,6 +206,17 @@ module.exports = function (prisma) {
 
   async function addToLibrarySingle(req, res) {
     try {
+      // Resolve optional target library from query param
+      const targetLibraryId = req.query.libraryId || null;
+      let targetLibrary = null;
+      if (targetLibraryId) {
+        targetLibrary = await prisma.library.findUnique({ where: { id: targetLibraryId } });
+      } else {
+        // pick default library if exists
+        targetLibrary = await prisma.library.findFirst({ where: { isDefault: true } });
+      }
+      const libraryRoot = require('../utils/library').resolveLibraryRoot(targetLibrary);
+
       const override = req.query.override === 'true';
       const directory = await prisma.directory.findUnique({
         where: { id: req.params.id },
@@ -212,9 +238,9 @@ module.exports = function (prisma) {
         const mediaType = 'movie';
         const tmdbInfo = await getTmdbDetails(directory.tmdbId, mediaType);
         if (!tmdbInfo) return res.status(400).json({ error: 'Could not fetch TMDB details' });
-        // If unrated, always use /mnt/library/unrated
+        // If unrated, always use <libraryRoot>/unrated
         if (dirMeta && dirMeta.unrated === true) {
-          const unratedFolder = '/mnt/library/unrated';
+          const unratedFolder = path.join(libraryRoot, 'unrated');
           const mediaTitle = (tmdbInfo.title || tmdbInfo.name || directory.name).replace(/\//g, " ");
           const releaseDate = tmdbInfo.release_date || tmdbInfo.first_air_date || "";
           const releaseYear = releaseDate ? releaseDate.substring(0, 4) : "Unknown";
@@ -230,14 +256,15 @@ module.exports = function (prisma) {
             }
           }
           await processMovieDirectory(directory, tmdbInfo, targetLibPath);
-        } else if (existingDirectory) {
-          targetLibPath = await processMovieDirectory(directory, tmdbInfo, existingDirectory.libraryPath);
-        } else {
-          targetLibPath = await processMovieDirectory(directory, tmdbInfo);
-        }
+          } else if (existingDirectory) {
+            targetLibPath = await processMovieDirectory(directory, tmdbInfo, existingDirectory.libraryPath, libraryRoot);
+          } else {
+            // Use selected/default library root when creating new target
+            targetLibPath = await processMovieDirectory(directory, tmdbInfo, null, libraryRoot);
+          }
         const updatedDir = await prisma.directory.update({
           where: { id: directory.id },
-          data: { libraryAdded: true, libraryPath: targetLibPath },
+          data: { libraryAdded: true, libraryPath: targetLibPath, libraryId: targetLibrary ? targetLibrary.id : null },
           include: { files: true }
         });
         // Fix BigInt serialization for JSON response
@@ -252,13 +279,13 @@ module.exports = function (prisma) {
         const tmdbInfo = await getTmdbDetails(directory.tmdbId, 'shows');
         if (!tmdbInfo) return res.status(400).json({ error: 'Could not fetch TMDB details' });
         if (existingDirectory) {
-          targetLibPath = await processShowDirectory(directory, tmdbInfo, existingDirectory.libraryPath);
+          targetLibPath = await processShowDirectory(directory, tmdbInfo, existingDirectory.libraryPath, libraryRoot);
         } else {
-          targetLibPath = await processShowDirectory(directory, tmdbInfo);
+          targetLibPath = await processShowDirectory(directory, tmdbInfo, null, libraryRoot);
         }
         const updatedDir = await prisma.directory.update({
           where: { id: directory.id },
-          data: { libraryAdded: true, libraryPath: targetLibPath },
+          data: { libraryAdded: true, libraryPath: targetLibPath, libraryId: targetLibrary ? targetLibrary.id : null },
           include: { files: true }
         });
         function replacer(key, value) { return typeof value === 'bigint' ? value.toString() : value; }
@@ -276,6 +303,16 @@ module.exports = function (prisma) {
 
   async function addToLibraryMass(req, res) {
     try {
+      // Resolve optional target library from query param
+      const targetLibraryId = req.query.libraryId || null;
+      let targetLibrary = null;
+      if (targetLibraryId) {
+        targetLibrary = await prisma.library.findUnique({ where: { id: targetLibraryId } });
+      } else {
+        targetLibrary = await prisma.library.findFirst({ where: { isDefault: true } });
+      }
+      const libraryRoot = require('../utils/library').resolveLibraryRoot(targetLibrary);
+
       const override = req.query.override === 'true';
       const directories = await prisma.directory.findMany({
         where: {
@@ -306,9 +343,9 @@ module.exports = function (prisma) {
           }
           try {
             let targetLibPath;
-            // If unrated, always use /mnt/library/unrated
+            // If unrated, always use <libraryRoot>/unrated
             if (dirMeta && dirMeta.unrated === true) {
-              const unratedFolder = '/mnt/library/unrated';
+              const unratedFolder = path.join(libraryRoot, 'unrated');
               const mediaTitle = (tmdbInfo.title || tmdbInfo.name || dir.name).replace(/\//g, " ");
               const releaseDate = tmdbInfo.release_date || tmdbInfo.first_air_date || "";
               const releaseYear = releaseDate ? releaseDate.substring(0, 4) : "Unknown";
@@ -326,14 +363,14 @@ module.exports = function (prisma) {
               await processMovieDirectory(dir, tmdbInfo, targetLibPath);
             } else {
               if (existingDirectory) {
-                targetLibPath = await processMovieDirectory(dir, tmdbInfo, existingDirectory.libraryPath);
+                targetLibPath = await processMovieDirectory(dir, tmdbInfo, existingDirectory.libraryPath, libraryRoot);
               } else {
-                targetLibPath = await processMovieDirectory(dir, tmdbInfo);
+                targetLibPath = await processMovieDirectory(dir, tmdbInfo, null, libraryRoot);
               }
             }
             const updated = await prisma.directory.update({
               where: { id: dir.id },
-              data: { libraryAdded: true, libraryPath: targetLibPath },
+              data: { libraryAdded: true, libraryPath: targetLibPath, libraryId: targetLibrary ? targetLibrary.id : null },
               include: { files: true }
             });
             return { id: dir.id, status: 'added', libraryPath: targetLibPath };
@@ -358,7 +395,8 @@ module.exports = function (prisma) {
     try {
       const directory = await prisma.directory.findUnique({ where: { id } });
       if (!directory) return res.status(404).send('Directory not found');
-      return res.render('edit', { directory }); // directory now includes metadata
+      const libraries = await require('../utils/library').getLibraries(prisma);
+      return res.render('edit', { directory, libraries }); // directory now includes metadata
     } catch (error) {
       console.error("Error fetching directory:", error);
       return res.status(500).send("Internal Server Error");

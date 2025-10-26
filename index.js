@@ -3,6 +3,7 @@
 require('@dotenvx/dotenvx').config();
 
 const express = require('express');
+const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const chokidar = require('chokidar');
 const fs = require('fs').promises;
@@ -38,6 +39,8 @@ const prisma = new PrismaClient({
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+// Allow cross-origin requests from the Next.js dev server (adjust origin as needed)
+app.use(cors({ origin: process.env.UI_ORIGIN || 'http://localhost:3000' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 function normalizeDirPath(p) {
@@ -74,50 +77,66 @@ async function syncDirectory(dirPath) {
     // - Clean up any orphan File rows that would conflict on unique path
     // - Upsert Directory by unique path
     // - In update branch, replace files via deleteMany + create
-    await prisma.$transaction([
-      prisma.file.deleteMany({ where: { path: { in: filesData.map(f => f.path) } } }),
-      prisma.directory.upsert({
-        where: { path: normalizedPath },
-        update: {
-          name: dirName,
-          files: {
-            deleteMany: {},
-            create: filesData
+    //
+    // NOTE: On SQLite (used in local/small deployments) very large deleteMany
+    // in a single transaction can hit a timeout (Prisma P1008) when the DB is
+    // busy or the underlying filesystem is slow (e.g. rclone mounts). To make
+    // this more robust we perform deletes in small batches with retries.
+    const paths = filesData.map(f => f.path);
+
+    // Helper: chunk an array
+    function chunkArray(arr, size) {
+      const chunks = [];
+      for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+      return chunks;
+    }
+
+    // Helper: small delay
+    function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    if (paths.length > 0) {
+      const chunks = chunkArray(paths, 200); // batch size (tunable)
+      for (const [idx, chunk] of chunks.entries()) {
+        let attempts = 0;
+        while (attempts < 3) {
+          try {
+            await prisma.file.deleteMany({ where: { path: { in: chunk } } });
+            break;
+          } catch (e) {
+            attempts += 1;
+            console.error(`deleteMany chunk ${idx + 1}/${chunks.length} failed (attempt ${attempts}):`, e && e.message);
+            // On timeout or busy DB, wait and retry
+            await wait(500 * attempts);
+            if (attempts >= 3) throw e;
           }
-        },
-        create: {
-          name: dirName,
-          path: normalizedPath,
-          files: { create: filesData }
         }
-      })
-    ]);
+        // Short pause between chunks to relieve DB contention
+        await wait(50);
+      }
+    }
+
+    // Finally perform the upsert which replaces the directory files in a safe way
+    await prisma.directory.upsert({
+      where: { path: normalizedPath },
+      update: {
+        name: dirName,
+        files: {
+          deleteMany: {},
+          create: filesData
+        }
+      },
+      create: {
+        name: dirName,
+        path: normalizedPath,
+        files: { create: filesData }
+      }
+    });
 
     console.log(`Synchronized directory ${normalizedPath} with ${filesData.length} file(s).`);
 }
 
-const watcher = chokidar.watch(watchedDirectory, {
-    // usePolling: true,
-    persistent: true,
-    followSymlinks: true,
-    waitWriteFinish: true, // emit single event when chunked writes are completed
-    atomic: true, // emit proper events when "atomic writes" (mv _tmp file) are used
-    depth: 1,            // Only immediate children directories.
-    ignoreInitial: false // Ignore existing directories on start.
-});
-
-watcher.on('addDir', async (dirPath) => {
-    // Ignore the root watched directory itself.
-    if (dirPath === watchedDirectory) return;
-
-    const normalized = normalizeDirPath(dirPath);
-    console.log(`New directory detected: ${normalized}`);
-    try {
-        await syncDirectory(normalized);
-    } catch (error) {
-        console.error(`Failed to sync directory ${normalized}:`, error);
-    }
-});
+// We'll create the watcher after ensuring the DB is prepared (WAL, busy_timeout)
+// in the async `init()` function further below.
 
 // Configure Express to use EJS as the view engine and set the views directory.
 app.set("view engine", "ejs");
@@ -128,12 +147,64 @@ const createDirectoryRoutes = require('./routes/directoryRoutes');
 const directoryRoutes = createDirectoryRoutes(prisma);
 app.use('/', directoryRoutes);
 
+// Start-up sequence: prepare DB (enable WAL, set busy timeout), then start watcher and server
+async function prepareDatabase() {
+  try {
+    // Enable WAL journal mode
+    const res = await prisma.$executeRawUnsafe("PRAGMA journal_mode = WAL;");
+    console.log('PRAGMA journal_mode result:', res);
+  } catch (e) {
+    console.error('Failed to set PRAGMA journal_mode=WAL:', e && e.message);
+  }
+  try {
+    // Reduce lock contention by allowing a busy timeout (ms)
+    await prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000;');
+    // Use NORMAL synchronous mode to balance durability and performance on local dev
+    await prisma.$executeRawUnsafe("PRAGMA synchronous = NORMAL;");
+  } catch (e) {
+    console.error('Failed to set PRAGMA busy_timeout/synchronous:', e && e.message);
+  }
+}
 
-// Start the Express server on port.
-const PORT = process.env.PORT || 4004;
-app.listen(PORT, () => {
+async function init() {
+  await prepareDatabase();
+
+  // Create watcher after DB prepared
+  const watcher = chokidar.watch(watchedDirectory, {
+    usePolling: true,
+    interval: 10000,
+    binaryInterval: 3000,
+    persistent: true,
+    followSymlinks: true,
+    waitWriteFinish: {
+      stabilityThreshold: 2000,
+      pollInterval: 100
+    },
+    atomic: true,
+    depth: 1,
+    ignoreInitial: false
+  });
+
+  watcher.on('addDir', async (dirPath) => {
+    if (normalizeDirPath(dirPath) === normalizeDirPath(watchedDirectory)) return;
+    const normalized = normalizeDirPath(dirPath);
+    console.log(`New directory detected: ${normalized}`);
+    try {
+      await syncDirectory(normalized);
+    } catch (error) {
+      console.error(`Failed to sync directory ${normalized}:`, error);
+    }
+  });
+
+  // Start the Express server on port.
+  const PORT = process.env.PORT || 4004;
+  app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}. Visit http://localhost:${PORT}/`);
-});
+  });
+}
+
+// Kick off init but don't crash the process for PRAGMA failures
+init().catch(e => console.error('Startup init failed:', e && e.message));
 
 // Graceful Shutdown: Disconnect Prisma when terminating the application.
 process.on('SIGINT', async () => {

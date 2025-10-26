@@ -128,4 +128,9 @@ dist
 prompts/
 
 *.db
+*.db-shm
+*.db-wal
 *.db.*
+
+# # Next.js app
+# next-app/

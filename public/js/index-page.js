@@ -27,6 +27,23 @@ async function apiCall(endpoint, method = 'GET') {
   }
 }
 
+async function createLibrary() {
+  const name = document.getElementById('newLibName').value.trim();
+  const root = document.getElementById('newLibRoot').value.trim();
+  const isDefault = document.getElementById('newLibDefault').checked;
+  if (!name || !root) { showDialog('error', 'Name and root path required'); return; }
+  try {
+    const resp = await fetch('/libraries', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ name, rootPath: root, isDefault }) });
+    const data = await resp.json();
+    if (resp.ok) {
+      showDialog('success', 'Library created');
+      setTimeout(() => window.location.reload(), 800);
+    } else {
+      showDialog('error', data.error || 'Failed to create');
+    }
+  } catch (e) { showDialog('error', e.message); }
+}
+
 function showDialog(type, message) {
   const dialog = document.getElementById("api-dialog");
   const dialogTitle = document.getElementById("api-dialog-title");
@@ -46,7 +63,16 @@ document.addEventListener("DOMContentLoaded", function () {
       e.preventDefault();
       const endpoint = button.getAttribute('data-endpoint');
       const method = button.getAttribute('data-method') || 'GET';
-      apiCall(endpoint, method);
+        // If there is a library selector include its value as query param for relevant endpoints
+        const libSelect = document.getElementById('libraryId');
+        let finalEndpoint = endpoint;
+        if (libSelect && (endpoint.includes('add-to-library') || endpoint.includes('update-all-tmdb') || endpoint.includes('add-to-library-mass'))) {
+          const libId = libSelect.value;
+          if (libId) {
+            finalEndpoint = endpoint + (endpoint.includes('?') ? '&' : '?') + 'libraryId=' + encodeURIComponent(libId);
+          }
+        }
+        apiCall(finalEndpoint, method);
     });
   });
 
