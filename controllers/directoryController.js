@@ -95,6 +95,14 @@ module.exports = function (prisma) {
       let libraries = [];
       try { libraries = await require('../utils/library').getLibraries(prisma); } catch (e) { libraries = []; }
 
+      // If client prefers JSON (or requests ?format=json), return JSON for API consumers
+      if ((req.headers.accept && req.headers.accept.includes('application/json')) || req.query.format === 'json') {
+        // Fix BigInt serialization
+        const replacer = (key, value) => typeof value === 'bigint' ? value.toString() : value;
+        res.setHeader('Content-Type', 'application/json');
+        return res.send(JSON.stringify({ enrichedDirectories, page, totalPages, query: req.query, validSortFields, libraries }, replacer));
+      }
+
       res.render("index", {
         enrichedDirectories,
         page,
