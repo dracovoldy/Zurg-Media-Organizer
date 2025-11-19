@@ -7,6 +7,7 @@
     "dev": "nodemon ./index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:backup": "bash ./scripts/db-backup.sh",
+    "db:restore": "bash ./scripts/db-restore.sh",
     "db:generate": "npx prisma generate",
     "db:reset": "npx prisma migrate reset --force --skip-seed",
     "db:reset:seed": "npx prisma migrate reset --force && npm run seed",
@@ -28,7 +29,7 @@
     "chokidar": "^4.0.3",
     "ejs": "^3.1.10",
     "express": "^4.21.2",
-  "cors": "^2.8.5",
+    "cors": "^2.8.5",
     "node-fetch": "^3.3.2",
     "openai": "^5.19.1",
     "sqlite3": "^5.1.7"

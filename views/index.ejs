@@ -44,6 +44,10 @@
           <option value="added" <%=query.libraryStatus==='added' ? 'selected' : '' %>>Added</option>
           <option value="notAdded" <%=query.libraryStatus==='notAdded' ? 'selected' : '' %>>Not Added</option>
         </select>
+        <label style="margin-left:0.5em;">
+          <input type="checkbox" name="createdFrom" value="today" <%= query.createdFrom==='today' ? 'checked' : '' %> />
+          Only show entries created on or after today
+        </label>
         <select name="sortBy">
           <option value="">Sort By</option>
           <% for (let i=0; i < validSortFields.length; i++) { %>

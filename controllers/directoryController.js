@@ -57,6 +57,20 @@ module.exports = function (prisma) {
         if (req.query.libraryStatus === 'added') filters.libraryAdded = true;
         else if (req.query.libraryStatus === 'notAdded') filters.libraryAdded = false;
       }
+      // Filter by created date (supports 'today' or ISO date string)
+      if (req.query.createdFrom && req.query.createdFrom.trim() !== "") {
+        const cf = req.query.createdFrom;
+        if (cf === 'today') {
+          const d = new Date();
+          d.setHours(0, 0, 0, 0);
+          filters.createdAt = { gte: d };
+        } else {
+          const parsed = new Date(cf);
+          if (!isNaN(parsed.getTime())) {
+            filters.createdAt = { gte: parsed };
+          }
+        }
+      }
       const validSortFields = ['name', 'parsedName', 'parsedYear', 'specialName', 'tmdbId', 'createdAt'];
       let orderBy = {};
       if (req.query.sortBy && validSortFields.includes(req.query.sortBy)) {
@@ -81,7 +95,7 @@ module.exports = function (prisma) {
         skip,
         take: limit
       });
-      const total = await prisma.directory.count({ where: filters });
+      const total = await prisma.directory.count({ where: whereClause });
       const totalPages = Math.ceil(total / limit);
       const enrichedDirectories = await Promise.all(directories.map(async (dir) => {
         if (dir.tmdbStatus === "MATCH_FOUND" && dir.tmdbId) {
